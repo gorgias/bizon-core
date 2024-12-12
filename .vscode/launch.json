@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Hubspot pipeline",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/bizon/sources/hubspot/tests/hubspot_pipeline.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Kafka pipeline",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/bizon/sources/kafka/tests/kafka_pipeline.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}
