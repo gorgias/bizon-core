@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -8,6 +8,7 @@ from bizon.destinations.file.src.config import FileDestinationConfig
 from bizon.destinations.logger.src.config import LoggerConfig
 from bizon.engine.config import EngineConfig
 from bizon.source.config import SourceConfig, SourceSyncModes
+from bizon.transform.config import TransformModel
 
 
 class BizonConfig(BaseModel):
@@ -21,6 +22,11 @@ class BizonConfig(BaseModel):
     source: SourceConfig = Field(
         description="Source configuration",
         default=...,
+    )
+
+    transforms: Optional[list[TransformModel]] = Field(
+        description="List of transformations to apply to the source data",
+        default=[],
     )
 
     destination: Union[

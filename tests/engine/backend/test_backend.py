@@ -1,5 +1,4 @@
-import os
-
+import uuid
 import pytest
 from sqlalchemy.orm import Session
 
@@ -52,9 +51,11 @@ def test_create_stream_job(backend: SQLAlchemyBackend, session: Session):
 def test_update_stream_job_status(backend: SQLAlchemyBackend, session: Session):
     backend.create_all_tables()
 
+    job_name = f"job_{uuid.uuid4().hex}"
+
     new_job = backend.create_stream_job(
         session=session,
-        name="testjob",
+        name=job_name,
         source_name="sourcetest",
         stream_name="cookie",
         sync_mode="full_refresh",
@@ -64,14 +65,14 @@ def test_update_stream_job_status(backend: SQLAlchemyBackend, session: Session):
 
     # If no job is running, get_running_job_id should return None
     job_running_not_found = backend.get_running_stream_job(
-        session=session, name="testjob", source_name="sourcetest", stream_name="cookie"
+        session=session, name=job_name, source_name="sourcetest", stream_name="cookie"
     )
     assert job_running_not_found == None
 
     backend.update_stream_job_status(session=session, job_id=new_job.id, job_status=JobStatus.RUNNING)
 
     job_running = backend.get_running_stream_job(
-        session=session, name="testjob", source_name="sourcetest", stream_name="cookie"
+        session=session, name=job_name, source_name="sourcetest", stream_name="cookie"
     )
     assert new_job.id == job_running.id
 

@@ -1,11 +1,10 @@
 import os
+import tempfile
 
 import pytest
-import tempfile
 from click.testing import CliRunner
 
 from bizon.cli.main import cli
-
 
 test_pg_config = f"""
 name: test_pipeline

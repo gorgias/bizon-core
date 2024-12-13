@@ -13,6 +13,7 @@ from bizon.engine.queue.queue import (
     QueueMessage,
 )
 from bizon.source.models import SourceIteration
+from bizon.transform.transform import Transform
 
 from .config import PythonQueueConfigDetails
 from .consumer import PythonQueueConsumer
@@ -31,8 +32,8 @@ class PythonQueue(AbstractQueue):
         # No connection to establish for PythonQueue
         pass
 
-    def get_consumer(self, destination: AbstractDestination) -> AbstractQueueConsumer:
-        return PythonQueueConsumer(config=self.config, queue=self.queue, destination=destination)
+    def get_consumer(self, destination: AbstractDestination, transform: Transform) -> AbstractQueueConsumer:
+        return PythonQueueConsumer(config=self.config, queue=self.queue, destination=destination, transform=transform)
 
     def put_queue_message(self, queue_message: QueueMessage):
         if not self.queue.full():
