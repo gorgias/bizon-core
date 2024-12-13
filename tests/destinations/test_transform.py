@@ -42,6 +42,6 @@ def test_simple_python_transform():
         # Stop writing here
         return json.dumps(data)
 
-    df_source_data = df_source_data.with_columns(pl.col("data").str.json_decode().map_elements(transform_data))
+    df_source_data = df_source_data.with_columns(pl.col("data").str.json_decode().map_elements(transform_data).alias("data"))
 
     assert df_source_data["data"].str.json_decode().to_list()[0] == { "name": "john", "age": 8 }
