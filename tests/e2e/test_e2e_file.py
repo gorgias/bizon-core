@@ -53,7 +53,6 @@ def test_e2e_dummy_to_file(pg_db_session, capsys):
     pipeline_thread = threading.Thread(target=run_pipeline)
     pipeline_thread.start()
 
-    time.sleep(5)
 
     with capsys.disabled():
         print("pipeline finished")

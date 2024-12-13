@@ -1,26 +1,62 @@
 import os
 
 import pytest
+import tempfile
 from click.testing import CliRunner
 
 from bizon.cli.main import cli
 
 
+test_pg_config = f"""
+name: test_pipeline
+
+source:
+  source_name: dummy
+  stream_name: creatures
+  authentication:
+    type: api_key
+    params:
+      token: dummy_key
+
+destination:
+  name: logger
+  config:
+    dummy: dummy
+
+engine:
+  backend:
+    type: postgres
+    config:
+        database: bizon_test
+        schema: public
+        syncCursorInDBEvery: 2
+        host: {os.environ.get("POSTGRES_HOST", "localhost")}
+        port: 5432
+        username: postgres
+        password: bizon
+"""
+
+
 def test_run_command():
-    runner = CliRunner(mix_stderr=False)
-    result = runner.invoke(cli, ["run", os.path.abspath("tests/cli/test_pg_config.yml")])
-    assert result.exit_code == 0
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        # Write config in temp file
+        with open(temp.name, "w") as f:
+            f.write(test_pg_config)
+
+        runner = CliRunner(mix_stderr=False)
+        result = runner.invoke(cli, ["run", temp.name])
+        assert result.exit_code == 0
 
 
-@pytest.mark.skipif(
-    os.getenv("POETRY_ENV_TEST") == "CI",
-    reason="Pytest runs test in parallel so failing",
-)
 def test_run_command_debug():
-    runner = CliRunner(mix_stderr=False)
-    result = runner.invoke(cli, ["run", os.path.abspath("tests/cli/test_pg_config.yml"), "--debug"])
-    assert os.getenv("LOGURU_LEVEL") == "DEBUG"
-    assert result.exit_code == 0
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        # Write config in temp file
+        with open(temp.name, "w") as f:
+            f.write(test_pg_config)
+
+        runner = CliRunner(mix_stderr=False)
+        result = runner.invoke(cli, ["run", temp.name, "--log-level", "DEBUG"])
+        assert result.exit_code == 0
 
 
 def test_source_list_command():
