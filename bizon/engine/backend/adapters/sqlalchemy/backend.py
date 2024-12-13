@@ -173,7 +173,9 @@ class SQLAlchemyBackend(AbstractBackend):
 
     def _execute(self, select: Select, session: Optional[Session] = None) -> Result:
         session = session or self.session
-        return session.execute(select)
+        result = session.execute(select)
+        session.commit()
+        return result
 
     #### STREAM JOB ####
 
