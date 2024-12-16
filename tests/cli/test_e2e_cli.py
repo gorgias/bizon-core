@@ -1,4 +1,4 @@
-import json
+import os
 
 from click.testing import CliRunner
 
@@ -22,11 +22,15 @@ BIZON_CONFIG_DUMMY_TO_FILE = f"""
 
     engine:
       backend:
-        type: sqlite
+        type: postgres
         config:
-          syncCursorInDBEvery: 100
-          database: bizon
+          database: bizon_test
           schema: public
+          syncCursorInDBEvery: 2
+          host: {os.environ.get("POSTGRES_HOST", "localhost")}
+          port: 5432
+          username: postgres
+          password: bizon
 
       runner:
         type: thread

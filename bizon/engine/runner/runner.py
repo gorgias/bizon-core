@@ -13,6 +13,7 @@ from bizon.engine.pipeline.producer import Producer
 from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
+from bizon.transform.transform import Transform
 
 
 class AbstractRunner(ABC):
@@ -88,6 +89,11 @@ class AbstractRunner(ABC):
             config=bizon_config.engine.queue,
             **kwargs,
         )
+
+    @staticmethod
+    def get_transform(bizon_config: BizonConfig) -> Transform:
+        """Return the transform instance to apply to the source records"""
+        return Transform(transforms=bizon_config.transforms)
 
     @staticmethod
     def get_or_create_job(
@@ -192,8 +198,9 @@ class AbstractRunner(ABC):
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
         destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id)
+        transform = AbstractRunner.get_transform(bizon_config=bizon_config)
 
-        consumer = queue.get_consumer(destination=destination)
+        consumer = queue.get_consumer(destination=destination, transform=transform)
 
         status = consumer.run()
         return status

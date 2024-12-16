@@ -15,7 +15,6 @@ from google.cloud.bigquery_storage_v1.types import (
 from google.protobuf.message import Message
 
 from bizon.common.models import SyncMetadata
-from bizon.destinations.config import NormalizationType
 from bizon.destinations.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 
@@ -50,19 +49,16 @@ class BigQueryStreamingDestination(AbstractDestination):
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
 
         # we keep raw data in the column source_data
-        if self.config.normalization.type == NormalizationType.NONE:
-            return [
-                bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
-                bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
-                bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
-                bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
-                bigquery.SchemaField(
-                    "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
-                ),
-                bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
-            ]
-
-        raise NotImplementedError(f"Normalization type {self.config.normalization.type} is not supported")
+        return [
+            bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField(
+                "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
+            ),
+            bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
+        ]
 
     def check_connection(self) -> bool:
         dataset_ref = DatasetReference(self.project_id, self.dataset_id)

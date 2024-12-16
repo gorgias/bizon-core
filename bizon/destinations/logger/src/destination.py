@@ -13,7 +13,11 @@ from .config import LoggerDestinationConfig
 class LoggerDestination(AbstractDestination):
 
     def __init__(self, sync_metadata: SyncMetadata, config: LoggerDestinationConfig, backend: AbstractBackend):
-        super().__init__(sync_metadata, config, backend)
+        super().__init__(
+            sync_metadata=sync_metadata,
+            config=config,
+            backend=backend,
+        )
 
     def check_connection(self) -> bool:
         return True
