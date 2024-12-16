@@ -1,7 +1,9 @@
-from bizon.transform.transform import TransformModel, Transform
-from bizon.source.models import source_record_schema
-import polars as pl
 import json
+
+import polars as pl
+
+from bizon.source.models import source_record_schema
+from bizon.transform.transform import Transform, TransformModel
 
 
 def test_simple_python_transform():
@@ -20,7 +22,7 @@ def test_simple_python_transform():
         {
             "name": "Jack",
             "age": 10,
-        }
+        },
     ]
 
     df_source_data = pl.DataFrame(
@@ -29,7 +31,7 @@ def test_simple_python_transform():
             "data": [json.dumps(row) for row in data],
             "timestamp": [20, 30, 40],
         },
-        schema=source_record_schema
+        schema=source_record_schema,
     )
 
     transform = Transform(
@@ -39,11 +41,11 @@ def test_simple_python_transform():
                 python="""
                 if 'name' in data:
                     data['name'] = data['name'].upper()
-                """
+                """,
             )
         ]
     )
 
     df_source_data = transform.apply_transforms(df_source_records=df_source_data)
 
-    assert df_source_data["data"].str.json_decode().to_list()[0] == { "name": "JOHN", "age": 8 }
+    assert df_source_data["data"].str.json_decode().to_list()[0] == {"name": "JOHN", "age": 8}

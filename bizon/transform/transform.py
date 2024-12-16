@@ -1,7 +1,9 @@
-import polars as pl
 import json
 import textwrap
+
+import polars as pl
 from loguru import logger
+
 from .config import TransformModel
 
 
@@ -11,7 +13,7 @@ class Transform:
         self.transforms = transforms
 
     def apply_transforms(self, df_source_records: pl.DataFrame) -> pl.DataFrame:
-        """ Apply transformation on df_source_records"""
+        """Apply transformation on df_source_records"""
 
         # Process the transformations
         for transform in self.transforms:
@@ -32,6 +34,8 @@ class Transform:
                 # Stop writing here
                 return json.dumps(local_vars["data"])
 
-            df_source_records = df_source_records.with_columns(pl.col("data").str.json_decode().map_elements(my_transform, return_dtype=pl.String).alias("data"))
+            df_source_records = df_source_records.with_columns(
+                pl.col("data").str.json_decode().map_elements(my_transform, return_dtype=pl.String).alias("data")
+            )
 
         return df_source_records
