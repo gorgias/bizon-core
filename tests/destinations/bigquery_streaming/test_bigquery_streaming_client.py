@@ -86,6 +86,10 @@ def test_streaming_records_to_bigquery(my_backend_config, sync_metadata_stream):
     assert error_msg == ""
 
 
+@pytest.mark.skipif(
+    os.getenv("POETRY_ENV_TEST") == "CI",
+    reason="Skipping tests that require a BigQuery database",
+)
 def test_streaming_unnested_records(my_backend_config, sync_metadata_stream):
     bigquery_config = BigQueryStreamingConfig(
         name=DestinationTypes.BIGQUERY_STREAMING,
@@ -149,6 +153,10 @@ def test_streaming_unnested_records(my_backend_config, sync_metadata_stream):
     assert error_msg == ""
 
 
+@pytest.mark.skipif(
+    os.getenv("POETRY_ENV_TEST") == "CI",
+    reason="Skipping tests that require a BigQuery database",
+)
 def test_error_on_added_column(my_backend_config, sync_metadata_stream):
     bigquery_config = BigQueryStreamingConfig(
         name=DestinationTypes.BIGQUERY_STREAMING,
@@ -222,6 +230,10 @@ def test_error_on_added_column(my_backend_config, sync_metadata_stream):
         bq_destination.write_records(df_destination_records=df_new)
 
 
+@pytest.mark.skipif(
+    os.getenv("POETRY_ENV_TEST") == "CI",
+    reason="Skipping tests that require a BigQuery database",
+)
 def test_error_on_deleted_column(my_backend_config, sync_metadata_stream):
     bigquery_config = BigQueryStreamingConfig(
         name=DestinationTypes.BIGQUERY_STREAMING,

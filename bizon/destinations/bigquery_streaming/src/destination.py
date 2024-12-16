@@ -12,7 +12,7 @@ from google.cloud.bigquery_storage_v1.types import (
     ProtoRows,
     ProtoSchema,
 )
-from google.protobuf.json_format import ParseDict, ParseError
+from google.protobuf.json_format import ParseDict
 from google.protobuf.message import Message
 
 from bizon.common.models import SyncMetadata
