@@ -16,7 +16,7 @@ from bizon.destinations.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.source.config import SourceSyncModes
 
-from .config import BigQueryConfigDetails, BigQueryColumn
+from .config import BigQueryColumn, BigQueryConfigDetails
 
 
 class BigQueryDestination(AbstractDestination):
@@ -123,7 +123,7 @@ class BigQueryDestination(AbstractDestination):
 
     @staticmethod
     def unnest_data(df_destination_records: pl.DataFrame, record_schema: list[BigQueryColumn]) -> pl.DataFrame:
-        """ Unnest the source_data field into separate columns """
+        """Unnest the source_data field into separate columns"""
         return df_destination_records.select(
             pl.col("source_data").str.json_path_match(f"$.{col.name}").cast(col.polars_type).alias(col.name)
             for col in record_schema

@@ -1,11 +1,13 @@
-import polars as pl
 from datetime import datetime
-from bizon.destinations.models import destination_record_schema
-from bizon.destinations.bigquery.src.destination import BigQueryDestination
+
+import polars as pl
+
 from bizon.destinations.bigquery.src.config import BigQueryColumn
+from bizon.destinations.bigquery.src.destination import BigQueryDestination
+from bizon.destinations.models import destination_record_schema
 
-def test_unnest_records_to_biguqery():
 
+def test_unnest_records_to_bigquery():
     df_destination_records = pl.DataFrame(
         data={
             "source_record_id": ["1"],
@@ -15,7 +17,7 @@ def test_unnest_records_to_biguqery():
             "bizon_loaded_at": [datetime.now()],
             "bizon_id": ["1"],
         },
-        schema=destination_record_schema
+        schema=destination_record_schema,
     )
 
     assert df_destination_records.height > 0
@@ -26,7 +28,7 @@ def test_unnest_records_to_biguqery():
             BigQueryColumn(name="id", type="INTEGER", mode="REQUIRED"),
             BigQueryColumn(name="name", type="STRING", mode="REQUIRED"),
             BigQueryColumn(name="created_at", type="DATETIME", mode="REQUIRED"),
-        ]
+        ],
     )
 
     assert res.height == 1

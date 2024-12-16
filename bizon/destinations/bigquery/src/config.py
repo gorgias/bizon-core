@@ -1,13 +1,14 @@
 from enum import Enum
 from typing import Literal, Optional
+
 import polars as pl
 from pydantic import BaseModel, Field
 
 from bizon.destinations.config import (
     AbstractDestinationConfig,
     AbstractDestinationDetailsConfig,
-    DestinationTypes,
     DestinationColumn,
+    DestinationTypes,
 )
 
 
@@ -54,15 +55,16 @@ BIGQUERY_TO_POLARS_TYPE_MAPPING = {
     "BIGNUMERIC": pl.Float64,  # Similar to NUMERIC
     "BOOLEAN": pl.Boolean,
     "BOOL": pl.Boolean,
-    "TIMESTAMP": pl.String, # We use BigQuery internal parsing to convert to datetime
-    "DATE": pl.String, # We use BigQuery internal parsing to convert to datetime
-    "DATETIME": pl.String, # We use BigQuery internal parsing to convert to datetime
+    "TIMESTAMP": pl.String,  # We use BigQuery internal parsing to convert to datetime
+    "DATE": pl.String,  # We use BigQuery internal parsing to convert to datetime
+    "DATETIME": pl.String,  # We use BigQuery internal parsing to convert to datetime
     "TIME": pl.Time,
     "GEOGRAPHY": pl.Object,  # Polars doesn't natively support geography types
     "ARRAY": pl.List,  # Requires additional handling for element types
     "STRUCT": pl.Struct,  # TODO
     "JSON": pl.Object,  # TODO
 }
+
 
 class BigQueryColumn(DestinationColumn):
     name: str = Field(..., description="Name of the column")
@@ -73,6 +75,7 @@ class BigQueryColumn(DestinationColumn):
     @property
     def polars_type(self):
         return BIGQUERY_TO_POLARS_TYPE_MAPPING.get(self.type.upper())
+
 
 class BigQueryAuthentication(BaseModel):
     service_account_key: str = Field(
