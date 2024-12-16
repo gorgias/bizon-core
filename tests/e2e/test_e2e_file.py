@@ -1,8 +1,6 @@
 import json
 import os
 import tempfile
-import threading
-import time
 
 import yaml
 
@@ -29,6 +27,12 @@ def test_e2e_dummy_to_file():
           config:
             filepath: {temp.name}
 
+        transforms:
+          - label: transform_data
+            python: |
+              if 'name' in data:
+                data['name'] = data['name'].upper()
+
         engine:
           backend:
             type: postgres
@@ -53,3 +57,4 @@ def test_e2e_dummy_to_file():
                 records_extracted[record["source_record_id"]] = record["source_data"]
 
         assert set(records_extracted.keys()) == set(["9898", "88787", "98", "3333", "56565"])
+        assert json.loads(records_extracted["9898"]).get("name") == "BIZON"

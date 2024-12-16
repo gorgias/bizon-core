@@ -1,4 +1,4 @@
-from bizon.transform.transform import TransformModel
+from bizon.transform.transform import TransformModel, Transform
 from bizon.source.models import source_record_schema
 import polars as pl
 import json
@@ -32,16 +32,18 @@ def test_simple_python_transform():
         schema=source_record_schema
     )
 
-    # Transform 'data' column to make names lowercase
-    def transform_data(data):
+    transform = Transform(
+        transforms=[
+            TransformModel(
+                label="transform_data",
+                python="""
+                if 'name' in data:
+                    data['name'] = data['name'].upper()
+                """
+            )
+        ]
+    )
 
-        # Start writing here
-        if 'name' in data:
-            data['name'] = data['name'].lower()
+    df_source_data = transform.apply_transforms(df_source_records=df_source_data)
 
-        # Stop writing here
-        return json.dumps(data)
-
-    df_source_data = df_source_data.with_columns(pl.col("data").str.json_decode().map_elements(transform_data).alias("data"))
-
-    assert df_source_data["data"].str.json_decode().to_list()[0] == { "name": "john", "age": 8 }
+    assert df_source_data["data"].str.json_decode().to_list()[0] == { "name": "JOHN", "age": 8 }

@@ -1,4 +1,6 @@
 import polars as pl
+import json
+import textwrap
 from loguru import logger
 from .config import TransformModel
 
@@ -14,11 +16,22 @@ class Transform:
         # Process the transformations
         for transform in self.transforms:
 
-            if transform.python:
-                logger.debug(f"Applying transform {transform.label}")
-                # Execute the Python code in the desired context
-                local_vars = {"df": df_source_records, "pl": pl}  # Provide the DataFrame and Polars module as context
-                exec(transform.python, {}, local_vars)
-                df_source_records = local_vars["df"]  # Retrieve the updated DataFrame
+            logger.debug(f"Applying transform {transform.label}")
+
+            # Create a function to be executed in the desired context
+            def my_transform(data: dict) -> str:
+
+                # Start writing here
+                local_vars = {"data": data}
+
+                # Normalize the indentation of the Python code
+                normalized_python = textwrap.dedent(transform.python)
+
+                exec(normalized_python, {}, local_vars)
+
+                # Stop writing here
+                return json.dumps(local_vars["data"])
+
+            df_source_records = df_source_records.with_columns(pl.col("data").str.json_decode().map_elements(my_transform, return_dtype=pl.String).alias("data"))
 
         return df_source_records
