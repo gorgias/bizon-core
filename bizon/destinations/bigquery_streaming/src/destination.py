@@ -7,12 +7,8 @@ import polars as pl
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, bigquery_storage_v1
 from google.cloud.bigquery import DatasetReference, TimePartitioning
-from google.cloud.bigquery_storage_v1.types import (
-    AppendRowsRequest,
-    ProtoRows,
-    ProtoSchema,
-)
-from google.protobuf.json_format import ParseDict
+from google.cloud.bigquery_storage_v1.types import AppendRowsRequest, ProtoRows, ProtoSchema
+from google.protobuf.json_format import ParseDict, ParseError
 from google.protobuf.message import Message
 
 from bizon.common.models import SyncMetadata
