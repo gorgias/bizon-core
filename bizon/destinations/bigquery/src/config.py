@@ -54,9 +54,9 @@ BIGQUERY_TO_POLARS_TYPE_MAPPING = {
     "BIGNUMERIC": pl.Float64,  # Similar to NUMERIC
     "BOOLEAN": pl.Boolean,
     "BOOL": pl.Boolean,
-    "TIMESTAMP": pl.Datetime,
-    "DATE": pl.Date,
-    "DATETIME": pl.Datetime,
+    "TIMESTAMP": pl.String, # We use BigQuery internal parsing to convert to datetime
+    "DATE": pl.String, # We use BigQuery internal parsing to convert to datetime
+    "DATETIME": pl.String, # We use BigQuery internal parsing to convert to datetime
     "TIME": pl.Time,
     "GEOGRAPHY": pl.Object,  # Polars doesn't natively support geography types
     "ARRAY": pl.List,  # Requires additional handling for element types

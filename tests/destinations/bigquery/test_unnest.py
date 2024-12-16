@@ -6,7 +6,6 @@ from bizon.destinations.bigquery.src.config import BigQueryColumn
 
 def test_unnest_records_to_biguqery():
 
-
     df_destination_records = pl.DataFrame(
         data={
             "source_record_id": ["1"],
@@ -21,13 +20,12 @@ def test_unnest_records_to_biguqery():
 
     assert df_destination_records.height > 0
 
-
     res = BigQueryDestination.unnest_data(
         df_destination_records=df_destination_records,
         record_schema=[
             BigQueryColumn(name="id", type="INTEGER", mode="REQUIRED"),
             BigQueryColumn(name="name", type="STRING", mode="REQUIRED"),
-            # BigQueryColumn(name="created_at", type="DATETIME", mode="REQUIRED"),
+            BigQueryColumn(name="created_at", type="DATETIME", mode="REQUIRED"),
         ]
     )
 
