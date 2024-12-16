@@ -15,8 +15,7 @@ class DestinationTypes(str, Enum):
 class DestinationColumn(BaseModel, ABC):
     name: str = Field(..., description="Name of the column")
     type: str = Field(..., description="Type of the column")
-    mode: Optional[str] = Field(..., description="Mode of the column")
-    description: Optional[str] = Field(..., description="Description of the column")
+    description: Optional[str] = Field(None, description="Description of the column")
 
 
 class AbstractDestinationDetailsConfig(BaseModel):

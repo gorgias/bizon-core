@@ -1,12 +1,13 @@
 from enum import Enum
 from typing import Literal, Optional
-
+import polars as pl
 from pydantic import BaseModel, Field
 
 from bizon.destinations.config import (
     AbstractDestinationConfig,
     AbstractDestinationDetailsConfig,
     DestinationTypes,
+    DestinationColumn,
 )
 
 
@@ -42,12 +43,36 @@ class BigQueryColumnMode(str, Enum):
     REPEATED = "REPEATED"
 
 
-class BigQueryColumn(BaseModel):
+BIGQUERY_TO_POLARS_TYPE_MAPPING = {
+    "STRING": pl.String,
+    "BYTES": pl.Binary,
+    "INTEGER": pl.Int64,
+    "INT64": pl.Int64,
+    "FLOAT": pl.Float64,
+    "FLOAT64": pl.Float64,
+    "NUMERIC": pl.Float64,  # Can be refined for precision with Decimal128 if needed
+    "BIGNUMERIC": pl.Float64,  # Similar to NUMERIC
+    "BOOLEAN": pl.Boolean,
+    "BOOL": pl.Boolean,
+    "TIMESTAMP": pl.Datetime,
+    "DATE": pl.Date,
+    "DATETIME": pl.Datetime,
+    "TIME": pl.Time,
+    "GEOGRAPHY": pl.Object,  # Polars doesn't natively support geography types
+    "ARRAY": pl.List,  # Requires additional handling for element types
+    "STRUCT": pl.Struct,  # TODO
+    "JSON": pl.Object,  # TODO
+}
+
+class BigQueryColumn(DestinationColumn):
     name: str = Field(..., description="Name of the column")
     type: BigQueryColumnType = Field(..., description="Type of the column")
     mode: BigQueryColumnMode = Field(..., description="Mode of the column")
-    description: Optional[str] = Field(..., description="Description of the column")
+    description: Optional[str] = Field(None, description="Description of the column")
 
+    @property
+    def polars_type(self):
+        return BIGQUERY_TO_POLARS_TYPE_MAPPING.get(self.type.upper())
 
 class BigQueryAuthentication(BaseModel):
     service_account_key: str = Field(
@@ -87,5 +112,5 @@ class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
 
 class BigQueryConfig(AbstractDestinationConfig):
     name: Literal[DestinationTypes.BIGQUERY]
-    buffer_size: Optional[int] = 2000
+    buffer_size: Optional[int] = 400
     config: BigQueryConfigDetails
