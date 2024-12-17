@@ -6,6 +6,7 @@ from loguru import logger
 
 from bizon.common.models import BizonConfig
 from bizon.engine.runner.runner import AbstractRunner
+from bizon.engine.pipeline.models import PipelineReturnStatus
 
 
 class ThreadRunner(AbstractRunner):
@@ -68,8 +69,14 @@ class ThreadRunner(AbstractRunner):
             self._is_running = False
 
             if not future_producer.running():
-                result_producer = future_producer.result()
+                result_producer: PipelineReturnStatus = future_producer.result()
                 logger.info(f"Producer thread stopped running with result: {result_producer}")
+
+                if result_producer.SUCCESS:
+                    logger.info("Producer thread has finished successfully, will wait for consumer to finish ...")
+                else:
+                    logger.error("Producer thread failed, stopping consumer ...")
+                    executor.shutdown(wait=False)
 
             if not future_consumer.running():
                 try:
@@ -77,5 +84,7 @@ class ThreadRunner(AbstractRunner):
                 except Exception as e:
                     logger.error(f"Consumer thread stopped running with error {e}")
                     logger.error(traceback.format_exc())
+                finally:
+                    executor.shutdown(wait=False)
 
         return True

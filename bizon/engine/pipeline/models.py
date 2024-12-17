@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class PipelineReturnStatus(Enum):
+class PipelineReturnStatus(str, Enum):
     """Producer error types"""
 
     SUCCESS = "success"
