@@ -1,5 +1,6 @@
 import concurrent.futures
 import time
+import traceback
 
 from loguru import logger
 
@@ -68,8 +69,19 @@ class ProcessRunner(AbstractRunner):
                 result_producer = future_producer.result()
                 logger.info(f"Producer process stopped running with result: {result_producer}")
 
+                if result_producer.SUCCESS:
+                    logger.info("Producer thread has finished successfully, will wait for consumer to finish ...")
+                else:
+                    logger.error("Producer thread failed, stopping consumer ...")
+                    executor.shutdown(wait=False)
+
             if not future_consumer.running():
-                result_consumer = future_consumer.result()
-                logger.info(f"Consumer process stopped running with result: {result_consumer}")
+                try:
+                    future_consumer.result()
+                except Exception as e:
+                    logger.error(f"Consumer thread stopped running with error {e}")
+                    logger.error(traceback.format_exc())
+                finally:
+                    executor.shutdown(wait=False)
 
         return True
