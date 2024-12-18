@@ -27,12 +27,17 @@ jobs:
     - name: Setup Env variable from Secret Manager
       run: |
         gcloud auth activate-service-account --key-file="${{ secrets.GCLOUD_SERVICE_KEY_FILE }}"
+
         APICURIO_PASSWORD=$(gcloud secrets versions access latest --secret="helpdesk-apicurio-us-central1-d8ff")
+
+        DUMMY_VALUE=cookies
+
         echo $APICURIO_PASSWORD >> $APICURIO_PASSWORD
+        echo $DUMMY_VALUE >> $DUMMY_VALUE
 
     - name: Echo the secret
       run: |
-        echo $APICURIO_PASSWORD
+        echo $DUMMY_VALUE
 
     - name: Install Poetry
       run: |
