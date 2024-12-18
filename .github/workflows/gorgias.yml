@@ -9,9 +9,6 @@ permissions:
 jobs:
   test:
 
-    # Only run on Gorgias repo
-    if: github.repository == 'gorgias/bizon-core'
-
     runs-on: gh-actions-small-runner-set
     container:
       image: us-central1-docker.pkg.dev/gorgias-ops-production/container-images/toolbox:latest
