@@ -12,6 +12,7 @@ from google.cloud.bigquery_storage_v1.types import (
     ProtoRows,
     ProtoSchema,
 )
+from google.protobuf.json_format import ParseDict
 from google.protobuf.message import Message
 
 from bizon.common.models import SyncMetadata
@@ -48,17 +49,29 @@ class BigQueryStreamingDestination(AbstractDestination):
 
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
 
-        # we keep raw data in the column source_data
-        return [
-            bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField(
-                "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
-            ),
-            bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
-        ]
+        if self.config.unnest:
+            return [
+                bigquery.SchemaField(
+                    col.name,
+                    col.type,
+                    mode=col.mode,
+                    description=col.description,
+                )
+                for col in self.config.record_schema
+            ]
+
+        # Case we don't unnest the data
+        else:
+            return [
+                bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
+                bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
+                bigquery.SchemaField(
+                    "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
+                ),
+                bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
+            ]
 
     def check_connection(self) -> bool:
         dataset_ref = DatasetReference(self.project_id, self.dataset_id)
@@ -90,14 +103,8 @@ class BigQueryStreamingDestination(AbstractDestination):
 
     @staticmethod
     def to_protobuf_serialization(TableRowClass: Type[Message], row: dict) -> bytes:
-        """Convert a row to a protobuf serialization"""
-        record = TableRowClass()
-        record._bizon_id = row["bizon_id"]
-        record._bizon_extracted_at = row["bizon_extracted_at"].strftime("%Y-%m-%d %H:%M:%S.%f")
-        record._bizon_loaded_at = row["bizon_loaded_at"].strftime("%Y-%m-%d %H:%M:%S.%f")
-        record._source_record_id = row["source_record_id"]
-        record._source_timestamp = row["source_timestamp"].strftime("%Y-%m-%d %H:%M:%S.%f")
-        record._source_data = row["source_data"]
+        """Convert a row to a Protobuf serialization."""
+        record = ParseDict(row, TableRowClass())
         return record.SerializeToString()
 
     def load_to_bigquery_via_streaming(self, df_destination_records: pl.DataFrame) -> str:
@@ -107,7 +114,9 @@ class BigQueryStreamingDestination(AbstractDestination):
         # Create table if it doesnt exist
         schema = self.get_bigquery_schema()
         table = bigquery.Table(self.table_id, schema=schema)
-        time_partitioning = TimePartitioning(field="_bizon_loaded_at", type_=self.config.time_partitioning)
+        time_partitioning = TimePartitioning(
+            field=self.config.time_partitioning_field, type_=self.config.time_partitioning
+        )
         table.time_partitioning = time_partitioning
 
         table = self.bq_client.create_table(table, exists_ok=True)
@@ -119,12 +128,29 @@ class BigQueryStreamingDestination(AbstractDestination):
         stream_name = f"{parent}/_default"
 
         # Generating the protocol buffer representation of the message descriptor.
-        proto_schema, TableRow = get_proto_schema_and_class(clustering_keys)
+        proto_schema, TableRow = get_proto_schema_and_class(schema, clustering_keys)
 
-        serialized_rows = [
-            self.to_protobuf_serialization(TableRowClass=TableRow, row=row)
-            for row in df_destination_records.iter_rows(named=True)
-        ]
+        if self.config.unnest:
+            serialized_rows = [
+                self.to_protobuf_serialization(TableRowClass=TableRow, row=row)
+                for row in df_destination_records["source_data"].str.json_decode().to_list()
+            ]
+        else:
+            df_destination_records = df_destination_records.rename(
+                {
+                    "bizon_id": "_bizon_id",
+                    "bizon_extracted_at": "_bizon_extracted_at",
+                    "bizon_loaded_at": "_bizon_loaded_at",
+                    "source_record_id": "_source_record_id",
+                    "source_timestamp": "_source_timestamp",
+                    "source_data": "_source_data",
+                }
+            )
+
+            serialized_rows = [
+                self.to_protobuf_serialization(TableRowClass=TableRow, row=row)
+                for row in df_destination_records.iter_rows(named=True)
+            ]
 
         results = []
         with ThreadPoolExecutor() as executor:

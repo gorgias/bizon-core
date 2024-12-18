@@ -1,5 +1,6 @@
 from typing import List, Tuple, Type
 
+from google.cloud.bigquery import SchemaField
 from google.cloud.bigquery_storage_v1.types import ProtoSchema
 from google.protobuf.descriptor_pb2 import (
     DescriptorProto,
@@ -11,7 +12,30 @@ from google.protobuf.message import Message
 from google.protobuf.message_factory import GetMessageClassesForFiles
 
 
-def get_proto_schema_and_class(clustering_keys: List[str] = None) -> Tuple[ProtoSchema, Type[Message]]:
+def map_bq_type_to_field_descriptor(bq_type: str) -> int:
+    """Map BigQuery type to Protobuf FieldDescriptorProto type."""
+    type_map = {
+        "STRING": FieldDescriptorProto.TYPE_STRING,  # STRING -> TYPE_STRING
+        "BYTES": FieldDescriptorProto.TYPE_BYTES,  # BYTES -> TYPE_BYTES
+        "INTEGER": FieldDescriptorProto.TYPE_INT64,  # INTEGER -> TYPE_INT64
+        "FLOAT": FieldDescriptorProto.TYPE_DOUBLE,  # FLOAT -> TYPE_DOUBLE
+        "NUMERIC": FieldDescriptorProto.TYPE_STRING,  # NUMERIC -> TYPE_STRING (use string to handle precision)
+        "BIGNUMERIC": FieldDescriptorProto.TYPE_STRING,  # BIGNUMERIC -> TYPE_STRING
+        "BOOLEAN": FieldDescriptorProto.TYPE_BOOL,  # BOOLEAN -> TYPE_BOOL
+        "DATE": FieldDescriptorProto.TYPE_STRING,  # DATE -> TYPE_STRING
+        "DATETIME": FieldDescriptorProto.TYPE_STRING,  # DATETIME -> TYPE_STRING
+        "TIME": FieldDescriptorProto.TYPE_STRING,  # TIME -> TYPE_STRING
+        "TIMESTAMP": FieldDescriptorProto.TYPE_INT64,  # TIMESTAMP -> TYPE_INT64 (Unix epoch time)
+        "RECORD": FieldDescriptorProto.TYPE_MESSAGE,  # RECORD -> TYPE_MESSAGE (nested message)
+    }
+
+    return type_map.get(bq_type, FieldDescriptorProto.TYPE_STRING)  # Default to TYPE_STRING
+
+
+def get_proto_schema_and_class(
+    bq_schema: List[SchemaField], clustering_keys: List[str] = None
+) -> Tuple[ProtoSchema, Type[Message]]:
+    """Generate a ProtoSchema and a TableRow class for unnested BigQuery schema."""
     # Define the FileDescriptorProto
     file_descriptor_proto = FileDescriptorProto()
     file_descriptor_proto.name = "dynamic.proto"
@@ -26,32 +50,14 @@ def get_proto_schema_and_class(clustering_keys: List[str] = None) -> Tuple[Proto
 
     # https://stackoverflow.com/questions/70489919/protobuf-type-for-bigquery-timestamp-field
     fields = [
-        {"name": "_bizon_id", "type": FieldDescriptorProto.TYPE_STRING, "label": FieldDescriptorProto.LABEL_REQUIRED},
         {
-            "name": "_bizon_extracted_at",
-            "type": FieldDescriptorProto.TYPE_STRING,
-            "label": FieldDescriptorProto.LABEL_REQUIRED,
-        },
-        {
-            "name": "_bizon_loaded_at",
-            "type": FieldDescriptorProto.TYPE_STRING,
-            "label": FieldDescriptorProto.LABEL_REQUIRED,
-        },
-        {
-            "name": "_source_record_id",
-            "type": FieldDescriptorProto.TYPE_STRING,
-            "label": FieldDescriptorProto.LABEL_REQUIRED,
-        },
-        {
-            "name": "_source_timestamp",
-            "type": FieldDescriptorProto.TYPE_STRING,
-            "label": FieldDescriptorProto.LABEL_REQUIRED,
-        },
-        {
-            "name": "_source_data",
-            "type": FieldDescriptorProto.TYPE_STRING,
-            "label": FieldDescriptorProto.LABEL_OPTIONAL,
-        },
+            "name": col.name,
+            "type": map_bq_type_to_field_descriptor(col.field_type),
+            "label": (
+                FieldDescriptorProto.LABEL_REQUIRED if col.mode == "REQUIRED" else FieldDescriptorProto.LABEL_OPTIONAL
+            ),
+        }
+        for col in bq_schema
     ]
 
     if clustering_keys:

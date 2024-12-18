@@ -1,5 +1,4 @@
 import io
-import json
 import os
 import tempfile
 import traceback
@@ -17,7 +16,7 @@ from bizon.destinations.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.source.config import SourceSyncModes
 
-from .config import BigQueryConfigDetails
+from .config import BigQueryColumn, BigQueryConfigDetails
 
 
 class BigQueryDestination(AbstractDestination):
@@ -60,16 +59,30 @@ class BigQueryDestination(AbstractDestination):
 
     def get_bigquery_schema(self, df_destination_records: pl.DataFrame) -> List[bigquery.SchemaField]:
 
-        return [
-            bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField(
-                "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
-            ),
-            bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
-        ]
+        # Case we unnest the data
+        if self.config.unnest:
+            return [
+                bigquery.SchemaField(
+                    col.name,
+                    col.type,
+                    mode=col.mode,
+                    description=col.description,
+                )
+                for col in self.config.record_schema
+            ]
+
+        # Case we don't unnest the data
+        else:
+            return [
+                bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
+                bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
+                bigquery.SchemaField(
+                    "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
+                ),
+                bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
+            ]
 
     def check_connection(self) -> bool:
         dataset_ref = DatasetReference(self.project_id, self.dataset_id)
@@ -107,6 +120,24 @@ class BigQueryDestination(AbstractDestination):
             return file_name
 
         raise NotImplementedError(f"Buffer format {self.buffer_format} is not supported")
+
+    @staticmethod
+    def unnest_data(df_destination_records: pl.DataFrame, record_schema: list[BigQueryColumn]) -> pl.DataFrame:
+        """Unnest the source_data field into separate columns"""
+
+        # Check if the schema matches the expected schema
+        source_data_fields = pl.DataFrame(df_destination_records['source_data'].str.json_decode()).schema["source_data"].fields
+
+        record_schema_fields = [col.name for col in record_schema]
+
+        for field in source_data_fields:
+            assert field.name in record_schema_fields, f"Column {field.name} not found in BigQuery schema"
+
+        # Parse the JSON and unnest the fields to polar type
+        return df_destination_records.select(
+            pl.col("source_data").str.json_path_match(f"$.{col.name}").cast(col.polars_type).alias(col.name)
+            for col in record_schema
+        )
 
     def load_to_bigquery(self, gcs_file: str, df_destination_records: pl.DataFrame):
 

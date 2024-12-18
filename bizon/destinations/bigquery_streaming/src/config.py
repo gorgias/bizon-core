@@ -1,8 +1,9 @@
 from enum import Enum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
+from bizon.destinations.bigquery.src.config import BigQueryColumn
 from bizon.destinations.config import (
     AbstractDestinationConfig,
     AbstractDestinationDetailsConfig,
@@ -34,8 +35,14 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
     time_partitioning: Optional[TimePartitioning] = Field(
         default=TimePartitioning.DAY, description="BigQuery Time partitioning type"
     )
+    time_partitioning_field: Optional[str] = Field(
+        "_bizon_loaded_at", description="Field to partition by. You can use a transformation to create this field."
+    )
     authentication: Optional[BigQueryAuthentication] = None
     bq_max_rows_per_request: Optional[int] = Field(30000, description="Max rows per buffer streaming request.")
+    record_schema: Optional[list[BigQueryColumn]] = Field(
+        default=None, description="Schema for the records. Required if unnest is set to true."
+    )
 
 
 class BigQueryStreamingConfig(AbstractDestinationConfig):
