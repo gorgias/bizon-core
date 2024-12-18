@@ -124,6 +124,16 @@ class BigQueryDestination(AbstractDestination):
     @staticmethod
     def unnest_data(df_destination_records: pl.DataFrame, record_schema: list[BigQueryColumn]) -> pl.DataFrame:
         """Unnest the source_data field into separate columns"""
+
+        # Check if the schema matches the expected schema
+        source_data_fields = pl.DataFrame(df_destination_records['source_data'].str.json_decode()).schema["source_data"].fields
+
+        record_schema_fields = [col.name for col in record_schema]
+
+        for field in source_data_fields:
+            assert field.name in record_schema_fields, f"Column {field.name} not found in BigQuery schema"
+
+        # Parse the JSON and unnest the fields to polar type
         return df_destination_records.select(
             pl.col("source_data").str.json_path_match(f"$.{col.name}").cast(col.polars_type).alias(col.name)
             for col in record_schema
