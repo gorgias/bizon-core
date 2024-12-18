@@ -1,0 +1,80 @@
+name: E2E tests Gorgias
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+
+    # Only run on Gorgias repo
+    if: github.repository == 'gorgias/bizon-core'
+
+    runs-on: gh-actions-small-runner-set
+    container:
+      image: us-central1-docker.pkg.dev/gorgias-ops-production/container-images/toolbox:latest
+      credentials:
+        username: _json_key
+        password: ${{ secrets.GCLOUD_SERVICE_KEY_FILE }}
+
+    timeout-minutes: 5
+
+    env:
+      GCLOUD_SERVICE_ACCOUNT: ${{ secrets.GCLOUD_SERVICE_ACCOUNT }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Env variable from Secret Manager
+      run: |
+        gcloud auth activate-service-account --key-file="${{ secrets.GCLOUD_SERVICE_KEY_FILE }}"
+        APICURIO_PASSWORD=$(gcloud secrets versions access latest --secret="helpdesk-apicurio-us-central1-d8ff")
+        echo $APICURIO_PASSWORD >> $APICURIO_PASSWORD
+
+    - name: Echo the secret
+      run: |
+        echo $APICURIO_PASSWORD
+
+    - name: Install Poetry
+      run: |
+        pip install poetry
+
+    - name: Configure Poetry for CI
+      run: |
+        poetry config virtualenvs.create false
+
+    - name: Install dependencies
+      run: |
+        poetry install --with test --all-extras
+
+    - name: Create config file
+      run: |
+        cat <<EOF > config.yaml
+        name: demo dummy to bigquery
+
+        source:
+          source_name: dummy
+          stream_name: creatures
+          authentication:
+            type: api_key
+            params:
+              token: dummy_key
+
+        destination:
+          name: bigquery
+          config:
+            buffer_size: 200
+            table_id: test_local_dummy_creatures
+            dataset_id: bizon_test
+            dataset_location: US
+            project_id: gorgias-growth-development
+            gcs_buffer_bucket: bizon-buffer
+            gcs_buffer_format: parquet
+        EOF
+
+    - name: Run E2E Gorgias test
+      run: |
+        POETRY_ENV_TEST=CI poetry run bizon run config.yaml
