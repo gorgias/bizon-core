@@ -5,8 +5,8 @@ import traceback
 from loguru import logger
 
 from bizon.common.models import BizonConfig
-from bizon.engine.runner.runner import AbstractRunner
 from bizon.engine.pipeline.models import PipelineReturnStatus
+from bizon.engine.runner.runner import AbstractRunner
 
 
 class ThreadRunner(AbstractRunner):
@@ -26,7 +26,7 @@ class ThreadRunner(AbstractRunner):
 
         return extra_kwargs
 
-    def run(self) -> bool:
+    def run(self) -> PipelineReturnStatus:
         """Run the pipeline with dedicated threads for source and destination"""
 
         extra_kwargs = self.get_kwargs()
@@ -76,15 +76,25 @@ class ThreadRunner(AbstractRunner):
                     logger.info("Producer thread has finished successfully, will wait for consumer to finish ...")
                 else:
                     logger.error("Producer thread failed, stopping consumer ...")
-                    executor.shutdown(wait=False)
+                    executor.shutdown(wait=True)
+                    return result_producer
 
             if not future_consumer.running():
-                try:
-                    future_consumer.result()
-                except Exception as e:
-                    logger.error(f"Consumer thread stopped running with error {e}")
-                    logger.error(traceback.format_exc())
-                finally:
-                    executor.shutdown(wait=False)
+                result_consumer = future_consumer.result()
+                logger.info(f"Consumer thread stopped running with result: {result_consumer}")
 
-        return True
+                if result_consumer == PipelineReturnStatus.SUCCESS:
+                    logger.info("Consumer thread has finished successfully")
+                else:
+                    logger.error("Consumer thread failed, stopping producer ...")
+                    executor.shutdown(wait=True)
+                    return result_consumer
+
+        if result_consumer == PipelineReturnStatus.SUCCESS and result_producer == PipelineReturnStatus.SUCCESS:
+            return PipelineReturnStatus.SUCCESS
+
+        if result_producer == PipelineReturnStatus.SUCCESS:
+            return result_consumer
+
+        if result_consumer == PipelineReturnStatus.SUCCESS:
+            return result_producer
