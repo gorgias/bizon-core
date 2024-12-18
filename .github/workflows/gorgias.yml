@@ -2,7 +2,6 @@ name: E2E tests Gorgias
 
 on:
   pull_request:
-    branches: [ "main" ]
 
 permissions:
   contents: read
