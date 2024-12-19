@@ -6,6 +6,7 @@ class PipelineReturnStatus(str, Enum):
 
     SUCCESS = "success"
     ERROR = "error"
+    KILLED_BY_RUNNER = "killed_by_runner"
     QUEUE_ERROR = "queue_error"
     SOURCE_ERROR = "source_error"
     BACKEND_ERROR = "backend_error"

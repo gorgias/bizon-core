@@ -11,11 +11,18 @@ from bizon.destinations.config import (
 )
 
 
-class TimePartitioning(str, Enum):
+class TimePartitioningWindow(str, Enum):
     DAY = "DAY"
     HOUR = "HOUR"
     MONTH = "MONTH"
     YEAR = "YEAR"
+
+
+class TimePartitioning(BaseModel):
+    type: TimePartitioningWindow = Field(default=TimePartitioningWindow.DAY, description="Time partitioning type")
+    field: Optional[str] = Field(
+        "_bizon_loaded_at", description="Field to partition by. You can use a transformation to create this field."
+    )
 
 
 class BigQueryAuthentication(BaseModel):
@@ -33,10 +40,8 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
         default=None, description="Table ID, if not provided it will be inferred from source name"
     )
     time_partitioning: Optional[TimePartitioning] = Field(
-        default=TimePartitioning.DAY, description="BigQuery Time partitioning type"
-    )
-    time_partitioning_field: Optional[str] = Field(
-        "_bizon_loaded_at", description="Field to partition by. You can use a transformation to create this field."
+        default=TimePartitioning(type=TimePartitioningWindow.DAY, field="_bizon_loaded_at"),
+        description="BigQuery Time partitioning type",
     )
     authentication: Optional[BigQueryAuthentication] = None
     bq_max_rows_per_request: Optional[int] = Field(30000, description="Max rows per buffer streaming request.")

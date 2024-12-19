@@ -1,11 +1,12 @@
 import concurrent.futures
 import time
-import traceback
+from threading import Event
 
 from loguru import logger
 
 from bizon.common.models import BizonConfig
 from bizon.engine.pipeline.models import PipelineReturnStatus
+from bizon.engine.runner.config import RunnerStatus
 from bizon.engine.runner.runner import AbstractRunner
 
 
@@ -26,7 +27,7 @@ class ThreadRunner(AbstractRunner):
 
         return extra_kwargs
 
-    def run(self) -> PipelineReturnStatus:
+    def run(self) -> RunnerStatus:
         """Run the pipeline with dedicated threads for source and destination"""
 
         extra_kwargs = self.get_kwargs()
@@ -35,6 +36,10 @@ class ThreadRunner(AbstractRunner):
         # Store the future results
         result_producer = None
         result_consumer = None
+
+        # Start the producer and consumer events
+        producer_stop_event = Event()
+        consumer_stop_event = Event()
 
         extra_kwargs = self.get_kwargs()
 
@@ -47,6 +52,7 @@ class ThreadRunner(AbstractRunner):
                 self.bizon_config,
                 self.config,
                 job.id,
+                producer_stop_event,
                 **extra_kwargs,
             )
             logger.info("Producer thread has started ...")
@@ -57,6 +63,7 @@ class ThreadRunner(AbstractRunner):
                 AbstractRunner.instanciate_and_run_consumer,
                 self.bizon_config,
                 job.id,
+                consumer_stop_event,
                 **extra_kwargs,
             )
             logger.info("Consumer thread has started ...")
@@ -76,8 +83,7 @@ class ThreadRunner(AbstractRunner):
                     logger.info("Producer thread has finished successfully, will wait for consumer to finish ...")
                 else:
                     logger.error("Producer thread failed, stopping consumer ...")
-                    executor.shutdown(wait=True)
-                    return result_producer
+                    consumer_stop_event.set()
 
             if not future_consumer.running():
                 result_consumer = future_consumer.result()
@@ -87,14 +93,6 @@ class ThreadRunner(AbstractRunner):
                     logger.info("Consumer thread has finished successfully")
                 else:
                     logger.error("Consumer thread failed, stopping producer ...")
-                    executor.shutdown(wait=True)
-                    return result_consumer
+                    producer_stop_event.set()
 
-        if result_consumer == PipelineReturnStatus.SUCCESS and result_producer == PipelineReturnStatus.SUCCESS:
-            return PipelineReturnStatus.SUCCESS
-
-        if result_producer == PipelineReturnStatus.SUCCESS:
-            return result_consumer
-
-        if result_consumer == PipelineReturnStatus.SUCCESS:
-            return result_producer
+        return RunnerStatus(producer=future_producer.result(), consumer=future_consumer.result())

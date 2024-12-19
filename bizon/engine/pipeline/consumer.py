@@ -1,6 +1,10 @@
+import multiprocessing
+import threading
 from abc import ABC, abstractmethod
+from typing import Union
 
 from bizon.destinations.destination import AbstractDestination
+from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.engine.queue.config import AbstractQueueConfig
 from bizon.transform.transform import Transform
 
@@ -12,5 +16,5 @@ class AbstractQueueConsumer(ABC):
         self.transform = transform
 
     @abstractmethod
-    def run(self):
+    def run(self, stop_event: Union[multiprocessing.Event, threading.Event]) -> PipelineReturnStatus:
         pass

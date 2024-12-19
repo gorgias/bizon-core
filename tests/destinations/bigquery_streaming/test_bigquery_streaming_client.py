@@ -98,7 +98,7 @@ def test_streaming_unnested_records(my_backend_config, sync_metadata_stream):
             dataset_id=TEST_DATASET_ID,
             table_id=TEST_TABLE_ID,
             unnest=True,
-            time_partitioning_field="created_at",
+            time_partitioning={"type": "DAY", "field": "created_at"},
             record_schema=[
                 {
                     "name": "id",
@@ -165,7 +165,7 @@ def test_error_on_added_column(my_backend_config, sync_metadata_stream):
             dataset_id=TEST_DATASET_ID,
             table_id=TEST_TABLE_ID,
             unnest=True,
-            time_partitioning_field="created_at",
+            time_partitioning={"type": "DAY", "field": "created_at"},
             record_schema=[
                 {
                     "name": "id",
@@ -242,7 +242,7 @@ def test_error_on_deleted_column(my_backend_config, sync_metadata_stream):
             dataset_id=TEST_DATASET_ID,
             table_id=TEST_TABLE_ID,
             unnest=True,
-            time_partitioning_field="created_at",
+            time_partitioning={"type": "DAY", "field": "created_at"},
             record_schema=[
                 {
                     "name": "id",

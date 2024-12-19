@@ -1,4 +1,7 @@
+import multiprocessing
+import threading
 import traceback
+from typing import Union
 
 from loguru import logger
 
@@ -18,9 +21,11 @@ class PythonQueueConsumer(AbstractQueueConsumer):
         super().__init__(config, destination=destination, transform=transform)
         self.queue = queue
 
-    def run(self) -> PipelineReturnStatus:
+    def run(self, stop_event: Union[threading.Event, multiprocessing.Event]) -> PipelineReturnStatus:
         while True:
-
+            if stop_event.is_set():
+                logger.info("Stop event is set, closing consumer ...")
+                return PipelineReturnStatus.KILLED_BY_RUNNER
             # Retrieve the message from the queue
             queue_message: QueueMessage = self.queue.get()
 

@@ -115,7 +115,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         schema = self.get_bigquery_schema()
         table = bigquery.Table(self.table_id, schema=schema)
         time_partitioning = TimePartitioning(
-            field=self.config.time_partitioning_field, type_=self.config.time_partitioning
+            field=self.config.time_partitioning.field, type_=self.config.time_partitioning.type
         )
         table.time_partitioning = time_partitioning
 
