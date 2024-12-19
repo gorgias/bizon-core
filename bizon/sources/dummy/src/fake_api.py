@@ -1,5 +1,10 @@
+import time
+
+
 # Function emulating an API call to a source endpoint
-def fake_api_call(url: str, cursor: str = None) -> dict:
+def fake_api_call(url: str, cursor: str = None, sleep: int = None) -> dict:
+    if sleep:
+        time.sleep(sleep)
     if url == "https://api.dummy.com/v1/creatures":
         return fake_api_call_creatures(cursor)
 

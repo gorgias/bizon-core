@@ -23,12 +23,14 @@ class DummyAuthConfig(AuthConfig):
 
 class DummySourceConfig(SourceConfig):
     authentication: DummyAuthConfig
+    sleep: int = Field(0, description="Sleep time in seconds between API calls")
 
 
 class DummySource(AbstractSource):
 
     def __init__(self, config: DummySourceConfig):
         super().__init__(config)
+        self.config = config
 
     @staticmethod
     def streams() -> List[str]:
@@ -71,11 +73,11 @@ class DummySource(AbstractSource):
 
         # If no pagination data is passed, we want to reach first page
         if not pagination:
-            response = fake_api_call(url=self.url_entity)
+            response = fake_api_call(url=self.url_entity, sleep=self.config.sleep)
 
         # If we have pagination data we pass it to the API
         else:
-            response = fake_api_call(url=self.url_entity, cursor=pagination.get("cursor"))
+            response = fake_api_call(url=self.url_entity, cursor=pagination.get("cursor"), sleep=self.config.sleep)
 
         # Now we process the response to:
         # - allow bizon to process the records and write them to destination

@@ -14,7 +14,6 @@ class Transform:
 
     def apply_transforms(self, df_source_records: pl.DataFrame) -> pl.DataFrame:
         """Apply transformation on df_source_records"""
-
         # Process the transformations
         for transform in self.transforms:
 
@@ -34,8 +33,12 @@ class Transform:
                 # Stop writing here
                 return json.dumps(local_vars["data"])
 
+            transformed_source_records = [
+                my_transform(row) for row in df_source_records["data"].str.json_decode().to_list()
+            ]
+
             df_source_records = df_source_records.with_columns(
-                pl.col("data").str.json_decode().map_elements(my_transform, return_dtype=pl.String).alias("data")
+                pl.Series("data", transformed_source_records, dtype=pl.String).alias("data")
             )
 
         return df_source_records

@@ -115,7 +115,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         schema = self.get_bigquery_schema()
         table = bigquery.Table(self.table_id, schema=schema)
         time_partitioning = TimePartitioning(
-            field=self.config.time_partitioning_field, type_=self.config.time_partitioning
+            field=self.config.time_partitioning.field, type_=self.config.time_partitioning.type
         )
         table.time_partitioning = time_partitioning
 
@@ -136,6 +136,11 @@ class BigQueryStreamingDestination(AbstractDestination):
                 for row in df_destination_records["source_data"].str.json_decode().to_list()
             ]
         else:
+            df_destination_records = df_destination_records.with_columns(
+                pl.col("bizon_extracted_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_extracted_at"),
+                pl.col("bizon_loaded_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_loaded_at"),
+                pl.col("source_timestamp").dt.strftime("%Y-%m-%d %H:%M:%S").alias("source_timestamp"),
+            )
             df_destination_records = df_destination_records.rename(
                 {
                     "bizon_id": "_bizon_id",

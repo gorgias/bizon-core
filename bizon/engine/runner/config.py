@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from bizon.engine.pipeline.models import PipelineReturnStatus
+
 
 class RunnerTypes(str, Enum):
     THREAD = "thread"
@@ -49,3 +51,15 @@ class RunnerConfig(BaseModel):
         description="Logging level",
         default=LoggerLevel.INFO,
     )
+
+
+class RunnerStatus(BaseModel):
+    producer: PipelineReturnStatus
+    consumer: PipelineReturnStatus
+
+    @property
+    def is_success(self):
+        if self.producer == PipelineReturnStatus.SUCCESS and self.consumer == PipelineReturnStatus.SUCCESS:
+            return True
+        else:
+            return False

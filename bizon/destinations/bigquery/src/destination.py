@@ -126,7 +126,9 @@ class BigQueryDestination(AbstractDestination):
         """Unnest the source_data field into separate columns"""
 
         # Check if the schema matches the expected schema
-        source_data_fields = pl.DataFrame(df_destination_records['source_data'].str.json_decode()).schema["source_data"].fields
+        source_data_fields = (
+            pl.DataFrame(df_destination_records["source_data"].str.json_decode()).schema["source_data"].fields
+        )
 
         record_schema_fields = [col.name for col in record_schema]
 
