@@ -1,10 +1,12 @@
 import concurrent.futures
 import time
-import traceback
+from threading import Event
 
 from loguru import logger
 
 from bizon.common.models import BizonConfig
+from bizon.engine.pipeline.models import PipelineReturnStatus
+from bizon.engine.runner.config import RunnerStatus
 from bizon.engine.runner.runner import AbstractRunner
 
 
@@ -25,7 +27,7 @@ class ThreadRunner(AbstractRunner):
 
         return extra_kwargs
 
-    def run(self) -> bool:
+    def run(self) -> RunnerStatus:
         """Run the pipeline with dedicated threads for source and destination"""
 
         extra_kwargs = self.get_kwargs()
@@ -34,6 +36,10 @@ class ThreadRunner(AbstractRunner):
         # Store the future results
         result_producer = None
         result_consumer = None
+
+        # Start the producer and consumer events
+        producer_stop_event = Event()
+        consumer_stop_event = Event()
 
         extra_kwargs = self.get_kwargs()
 
@@ -46,6 +52,7 @@ class ThreadRunner(AbstractRunner):
                 self.bizon_config,
                 self.config,
                 job.id,
+                producer_stop_event,
                 **extra_kwargs,
             )
             logger.info("Producer thread has started ...")
@@ -56,6 +63,7 @@ class ThreadRunner(AbstractRunner):
                 AbstractRunner.instanciate_and_run_consumer,
                 self.bizon_config,
                 job.id,
+                consumer_stop_event,
                 **extra_kwargs,
             )
             logger.info("Consumer thread has started ...")
@@ -68,14 +76,23 @@ class ThreadRunner(AbstractRunner):
             self._is_running = False
 
             if not future_producer.running():
-                result_producer = future_producer.result()
+                result_producer: PipelineReturnStatus = future_producer.result()
                 logger.info(f"Producer thread stopped running with result: {result_producer}")
 
-            if not future_consumer.running():
-                try:
-                    future_consumer.result()
-                except Exception as e:
-                    logger.error(f"Consumer thread stopped running with error {e}")
-                    logger.error(traceback.format_exc())
+                if result_producer.SUCCESS:
+                    logger.info("Producer thread has finished successfully, will wait for consumer to finish ...")
+                else:
+                    logger.error("Producer thread failed, stopping consumer ...")
+                    consumer_stop_event.set()
 
-        return True
+            if not future_consumer.running():
+                result_consumer = future_consumer.result()
+                logger.info(f"Consumer thread stopped running with result: {result_consumer}")
+
+                if result_consumer == PipelineReturnStatus.SUCCESS:
+                    logger.info("Consumer thread has finished successfully")
+                else:
+                    logger.error("Consumer thread failed, stopping producer ...")
+                    producer_stop_event.set()
+
+        return RunnerStatus(producer=future_producer.result(), consumer=future_consumer.result())

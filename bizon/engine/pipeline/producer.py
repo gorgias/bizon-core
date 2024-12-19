@@ -1,8 +1,10 @@
 import ast
+import multiprocessing
+import threading
 import traceback
 from datetime import datetime
 from time import sleep
-from typing import Tuple
+from typing import Tuple, Union
 
 from loguru import logger
 from pytz import UTC
@@ -99,7 +101,7 @@ class Producer:
 
         return False, queue_size, approximate_nb_records_in_queue
 
-    def run(self, job_id: int):
+    def run(self, job_id: int, stop_event: Union[multiprocessing.Event, threading.Event]) -> PipelineReturnStatus:
 
         return_value: PipelineReturnStatus = PipelineReturnStatus.SUCCESS
 
@@ -127,6 +129,10 @@ class Producer:
             return PipelineReturnStatus.BACKEND_ERROR
 
         while not cursor.is_finished:
+
+            if stop_event.is_set():
+                logger.info("Stop event is set, terminating producer ...")
+                return PipelineReturnStatus.KILLED_BY_RUNNER
 
             timestamp_start_iteration = datetime.now(tz=UTC)
 

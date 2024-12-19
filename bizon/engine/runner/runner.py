@@ -1,6 +1,8 @@
-import os
+import multiprocessing
 import sys
+import threading
 from abc import ABC, abstractmethod
+from typing import Union
 
 from loguru import logger
 
@@ -11,6 +13,7 @@ from bizon.engine.backend.backend import AbstractBackend, BackendFactory
 from bizon.engine.backend.models import JobStatus, StreamJob
 from bizon.engine.pipeline.producer import Producer
 from bizon.engine.queue.queue import AbstractQueue, QueueFactory
+from bizon.engine.runner.config import RunnerStatus
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -176,7 +179,13 @@ class AbstractRunner(ABC):
         return job
 
     @staticmethod
-    def instanciate_and_run_producer(bizon_config: BizonConfig, config: dict, job_id: str, **kwargs):
+    def instanciate_and_run_producer(
+        bizon_config: BizonConfig,
+        config: dict,
+        job_id: str,
+        stop_event: Union[multiprocessing.Event, threading.Event],
+        **kwargs,
+    ):
 
         source = AbstractRunner.get_source(bizon_config=bizon_config, config=config)
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
@@ -189,11 +198,13 @@ class AbstractRunner(ABC):
             backend=backend,
         )
 
-        status = producer.run(job_id)
+        status = producer.run(job_id, stop_event)
         return status
 
     @staticmethod
-    def instanciate_and_run_consumer(bizon_config: BizonConfig, job_id: str, **kwargs):
+    def instanciate_and_run_consumer(
+        bizon_config: BizonConfig, job_id: str, stop_event: Union[multiprocessing.Event, threading.Event], **kwargs
+    ):
 
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
@@ -202,10 +213,10 @@ class AbstractRunner(ABC):
 
         consumer = queue.get_consumer(destination=destination, transform=transform)
 
-        status = consumer.run()
+        status = consumer.run(stop_event)
         return status
 
     @abstractmethod
-    def run(self) -> bool:
+    def run(self) -> RunnerStatus:
         """Run the pipeline with dedicated adapter for source and destination"""
         pass

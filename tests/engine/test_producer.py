@@ -10,6 +10,7 @@ from bizon.engine.backend.models import JobStatus, StreamJob
 from bizon.engine.engine import RunnerFactory
 from bizon.engine.pipeline.producer import Producer
 from bizon.source.models import SourceIteration, SourceRecord
+import threading
 
 
 @pytest.fixture(scope="function")
@@ -38,7 +39,8 @@ def test_cursor_recovery_after_iteration(my_producer: Producer, sqlite_db_sessio
     cursor = my_producer.get_or_create_cursor(job_id=my_job.id, session=sqlite_db_session)
     assert cursor is not None
 
-    my_producer.run(job_id=my_job.id)
+    stop_event = threading.Event()
+    my_producer.run(job_id=my_job.id, stop_event=stop_event)
 
     # Here we did not run the job, so the cursor should be None
     cursor_from_db = my_producer.backend.get_last_cursor_by_job_id(job_id=my_job.id, session=sqlite_db_session)
