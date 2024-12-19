@@ -25,7 +25,7 @@ def map_bq_type_to_field_descriptor(bq_type: str) -> int:
         "DATE": FieldDescriptorProto.TYPE_STRING,  # DATE -> TYPE_STRING
         "DATETIME": FieldDescriptorProto.TYPE_STRING,  # DATETIME -> TYPE_STRING
         "TIME": FieldDescriptorProto.TYPE_STRING,  # TIME -> TYPE_STRING
-        "TIMESTAMP": FieldDescriptorProto.TYPE_INT64,  # TIMESTAMP -> TYPE_INT64 (Unix epoch time)
+        "TIMESTAMP": FieldDescriptorProto.TYPE_STRING,  # TIMESTAMP -> TYPE_INT64 (Unix epoch time)
         "RECORD": FieldDescriptorProto.TYPE_MESSAGE,  # RECORD -> TYPE_MESSAGE (nested message)
     }
 

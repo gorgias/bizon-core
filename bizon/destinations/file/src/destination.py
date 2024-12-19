@@ -1,7 +1,7 @@
+import json
 from typing import Tuple
 
 import polars as pl
-import json
 from loguru import logger
 
 from bizon.common.models import SyncMetadata

@@ -136,6 +136,11 @@ class BigQueryStreamingDestination(AbstractDestination):
                 for row in df_destination_records["source_data"].str.json_decode().to_list()
             ]
         else:
+            df_destination_records = df_destination_records.with_columns(
+                pl.col("bizon_extracted_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_extracted_at"),
+                pl.col("bizon_loaded_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_loaded_at"),
+                pl.col("source_timestamp").dt.strftime("%Y-%m-%d %H:%M:%S").alias("source_timestamp"),
+            )
             df_destination_records = df_destination_records.rename(
                 {
                     "bizon_id": "_bizon_id",
