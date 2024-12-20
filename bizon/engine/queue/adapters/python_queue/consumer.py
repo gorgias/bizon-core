@@ -1,4 +1,5 @@
 import multiprocessing
+import multiprocessing.synchronize
 import threading
 import traceback
 from typing import Union
@@ -21,7 +22,7 @@ class PythonQueueConsumer(AbstractQueueConsumer):
         super().__init__(config, destination=destination, transform=transform)
         self.queue = queue
 
-    def run(self, stop_event: Union[threading.Event, multiprocessing.Event]) -> PipelineReturnStatus:
+    def run(self, stop_event: Union[threading.Event, multiprocessing.synchronize.Event]) -> PipelineReturnStatus:
         while True:
             if stop_event.is_set():
                 logger.info("Stop event is set, closing consumer ...")

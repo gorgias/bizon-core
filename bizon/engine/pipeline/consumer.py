@@ -1,4 +1,5 @@
 import multiprocessing
+import multiprocessing.synchronize
 import threading
 from abc import ABC, abstractmethod
 from typing import Union
@@ -16,5 +17,5 @@ class AbstractQueueConsumer(ABC):
         self.transform = transform
 
     @abstractmethod
-    def run(self, stop_event: Union[multiprocessing.Event, threading.Event]) -> PipelineReturnStatus:
+    def run(self, stop_event: Union[multiprocessing.synchronize.Event, threading.Event]) -> PipelineReturnStatus:
         pass
