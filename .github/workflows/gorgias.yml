@@ -11,7 +11,7 @@ permissions:
 jobs:
   kafka-to-bigquery:
     name: Kafka to BigQuery
-    uses: gorgias/data-analytics-engineering-platform/.github/workflows/reusable-bizon-kafka2bq-e2e-test.yml@main
+    uses: gorgias/data-analytics-engineering-platform/.github/workflows/reusable-bizon-kafka2bq-e2e-test.yml
     with:
       ref: ${{ github.ref }}
     secrets: inherit
