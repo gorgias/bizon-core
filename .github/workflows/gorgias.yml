@@ -10,8 +10,13 @@ permissions:
 
 jobs:
   kafka-to-bigquery:
-    name: Kafka to BigQuery
-    uses: gorgias/data-analytics-engineering-platform/.github/workflows/reusable-bizon-kafka2bq-e2e-test.yml@main
-    with:
-      ref: ${{ github.ref }}
-    secrets: inherit
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kafka to BigQuery
+        uses: gorgias/data-analytics-engineering-platform/.github/workflows/reusable-bizon-kafka2bq-e2e-test.yml@main
+        with:
+          ref: ${{ github.ref }}
+        env:
+          GH_TOKEN: ${{ secrets.GORGIAS_BOT_READONLY_GH_ACTIONS_REPO_READ_TOKEN }}
