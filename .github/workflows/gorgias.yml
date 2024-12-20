@@ -7,7 +7,7 @@ permissions:
   contents: read
   # The id-token: write permission is required for workload identity authentication to GCloud
   id-token: write
-
+jijij
 jobs:
   kafka-to-bigquery:
     name: Kafka to BigQuery
