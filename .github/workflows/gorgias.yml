@@ -7,10 +7,10 @@ permissions:
   contents: read
   # The id-token: write permission is required for workload identity authentication to GCloud
   id-token: write
-jijij
+jijijn
 jobs:
   kafka-to-bigquery:
-    name: Kafka to BigQuery
+    name: Kafka tnno BigQuery
     uses: gorgias/data-analytics-engineering-platform/.github/workflows/reusable-bizon-kafka2bq-e2e-test.yml@main
     with:nknkn
       ref: ${{ github.ref
