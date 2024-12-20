@@ -1,4 +1,5 @@
 import multiprocessing
+import multiprocessing.synchronize
 import sys
 import threading
 from abc import ABC, abstractmethod
@@ -183,7 +184,7 @@ class AbstractRunner(ABC):
         bizon_config: BizonConfig,
         config: dict,
         job_id: str,
-        stop_event: Union[multiprocessing.Event, threading.Event],
+        stop_event: Union[multiprocessing.synchronize.Event, threading.Event],
         **kwargs,
     ):
 
@@ -203,7 +204,10 @@ class AbstractRunner(ABC):
 
     @staticmethod
     def instanciate_and_run_consumer(
-        bizon_config: BizonConfig, job_id: str, stop_event: Union[multiprocessing.Event, threading.Event], **kwargs
+        bizon_config: BizonConfig,
+        job_id: str,
+        stop_event: Union[multiprocessing.synchronize.Event, threading.Event],
+        **kwargs,
     ):
 
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)

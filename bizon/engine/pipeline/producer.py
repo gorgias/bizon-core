@@ -1,5 +1,6 @@
 import ast
 import multiprocessing
+import multiprocessing.synchronize
 import threading
 import traceback
 from datetime import datetime
@@ -101,7 +102,9 @@ class Producer:
 
         return False, queue_size, approximate_nb_records_in_queue
 
-    def run(self, job_id: int, stop_event: Union[multiprocessing.Event, threading.Event]) -> PipelineReturnStatus:
+    def run(
+        self, job_id: int, stop_event: Union[multiprocessing.synchronize.Event, threading.Event]
+    ) -> PipelineReturnStatus:
 
         return_value: PipelineReturnStatus = PipelineReturnStatus.SUCCESS
 
