@@ -119,11 +119,11 @@ def run(
     runner = RunnerFactory.create_from_config_dict(config=config)
     result = runner.run()
 
-    # Raise an error if the pipeline failed
-    if not result.is_success:
-        raise click.ClickException(f"{result.to_string()} Check logs for more information.")
+    if result.is_success:
+        click.secho("Pipeline finished successfully.", fg="green")
 
-    click.echo("Pipeline finished.")
+    else:
+        raise click.exceptions.ClickException(result.to_string())
 
 
 if __name__ == "__main__":

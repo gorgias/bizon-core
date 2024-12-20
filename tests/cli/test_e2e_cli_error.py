@@ -1,4 +1,5 @@
 import tempfile
+
 from click.testing import CliRunner
 
 from bizon.cli.main import cli
@@ -42,4 +43,7 @@ def test_e2e_run_command_dummy_to_file():
         result = runner.invoke(cli, ["run", temp.name])
 
         assert result.exit_code == 1
-        assert "Pipeline finished with status Failure (Producer: killed_by_runner, Consumer: transform_error)" in result.stderr
+        assert (
+            "Pipeline finished with status Failure (Producer: killed_by_runner, Consumer: transform_error)"
+            in result.stderr
+        )
