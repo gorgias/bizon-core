@@ -1,0 +1,17 @@
+name: Gorgias E2E tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  # The id-token: write permission is required for workload identity authentication to GCloud
+  id-token: write
+
+jobs:
+  kafka-to-bigquery:
+    name: Kafka to BigQuery
+    uses: gorgias/data-analytics-platform/.github/workflows/reusable-bizon-kafka2bq-e2e-test.yml@main
+    with:
+      ref: ${{ github.ref }}
+    secrets: inherit
