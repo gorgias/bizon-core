@@ -63,3 +63,9 @@ class RunnerStatus(BaseModel):
             return True
         else:
             return False
+
+    def to_string(self):
+        return (
+            f"Pipeline finished with status {'Success' if self.is_success else 'Failure'} "
+            f"(Producer: {self.producer.value}, Consumer: {self.consumer.value})"
+        )
