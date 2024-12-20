@@ -1,4 +1,5 @@
 import os
+import threading
 from datetime import datetime
 from queue import Queue
 
@@ -10,7 +11,6 @@ from bizon.engine.backend.models import JobStatus, StreamJob
 from bizon.engine.engine import RunnerFactory
 from bizon.engine.pipeline.producer import Producer
 from bizon.source.models import SourceIteration, SourceRecord
-import threading
 
 
 @pytest.fixture(scope="function")

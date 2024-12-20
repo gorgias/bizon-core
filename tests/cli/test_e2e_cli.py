@@ -48,4 +48,4 @@ def test_e2e_run_command_dummy_to_file():
 
         result = runner.invoke(cli, ["run", "config.yml"], catch_exceptions=True)
         assert result.exit_code == 0
-        assert result.output == "Pipeline finished.\n"
+        assert result.output == "Pipeline finished successfully.\n"

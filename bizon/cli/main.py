@@ -117,9 +117,13 @@ def run(
     set_runner_in_config(config=config, runner=runner)
 
     runner = RunnerFactory.create_from_config_dict(config=config)
-    runner.run()
+    result = runner.run()
 
-    click.echo("Pipeline finished.")
+    if result.is_success:
+        click.secho("Pipeline finished successfully.", fg="green")
+
+    else:
+        raise click.exceptions.ClickException(result.to_string())
 
 
 if __name__ == "__main__":
