@@ -12,7 +12,12 @@ from bizon.engine.pipeline.consumer import AbstractQueueConsumer
 from bizon.source.models import SourceIteration, source_record_schema
 from bizon.transform.transform import Transform
 
-from .config import AbastractQueueConfigDetails, AbstractQueueConfig, QueueTypes, QueueMessage
+from .config import (
+    AbastractQueueConfigDetails,
+    AbstractQueueConfig,
+    QueueMessage,
+    QueueTypes,
+)
 
 
 class AbstractQueue(ABC):

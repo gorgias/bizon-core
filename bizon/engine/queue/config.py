@@ -1,15 +1,15 @@
 from abc import ABC
-from enum import Enum
-import polars as pl
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Optional
+
+import polars as pl
+from pydantic import BaseModel, ConfigDict, Field
 from pytz import UTC
 
-from dataclasses import dataclass
-
-from pydantic import BaseModel, ConfigDict, Field
-
 QUEUE_TERMINATION = "TERMINATION"
+
 
 @dataclass
 class QueueMessage:
@@ -18,6 +18,7 @@ class QueueMessage:
     extracted_at: datetime = datetime.now(tz=UTC)
     pagination: Optional[dict] = None
     signal: Optional[str] = None
+
 
 class QueueTypes(str, Enum):
     KAFKA = "kafka"

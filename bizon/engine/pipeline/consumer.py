@@ -9,8 +9,11 @@ from loguru import logger
 
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.pipeline.models import PipelineReturnStatus
-from bizon.engine.queue.config import AbstractQueueConfig, QueueMessage
-from bizon.engine.queue.config import QUEUE_TERMINATION
+from bizon.engine.queue.config import (
+    QUEUE_TERMINATION,
+    AbstractQueueConfig,
+    QueueMessage,
+)
 from bizon.transform.transform import Transform
 
 

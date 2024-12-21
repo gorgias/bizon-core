@@ -7,10 +7,7 @@ from loguru import logger
 
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.queue.config import QUEUE_TERMINATION, QueueMessage
-from bizon.engine.queue.queue import (
-    AbstractQueue,
-    AbstractQueueConsumer,
-)
+from bizon.engine.queue.queue import AbstractQueue, AbstractQueueConsumer
 from bizon.source.models import SourceIteration
 from bizon.transform.transform import Transform
 

@@ -8,8 +8,8 @@ from loguru import logger
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.pipeline.consumer import AbstractQueueConsumer
 from bizon.engine.pipeline.models import PipelineReturnStatus
-from bizon.engine.queue.queue import AbstractQueue
 from bizon.engine.queue.config import QueueMessage
+from bizon.engine.queue.queue import AbstractQueue
 from bizon.transform.transform import Transform
 
 from .config import PythonQueueConfig
