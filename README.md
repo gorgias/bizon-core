@@ -60,7 +60,7 @@ bizon run config.yml
 
 Backend is the interface used by Bizon to store its state. It can be configured in the `backend` section of the configuration file. The following backends are supported:
 - `sqlite`: In-memory SQLite database, useful for testing and development.
-- `biguquery`: Google BigQuery backend, perfect for light setup & production.
+- `bigquery`: Google BigQuery backend, perfect for light setup & production.
 - `postgres`: PostgreSQL backend, for production use and frequent cursor updates.
 
 ## Queue configuration
