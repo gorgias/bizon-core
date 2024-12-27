@@ -107,7 +107,9 @@ class BigQueryStreamingDestination(AbstractDestination):
             if col.type in ["TIMESTAMP", "DATETIME"]:
                 if isinstance(row[col.name], int):
                     if row[col.name] > datetime(9999, 12, 31).timestamp():
-                        row[col.name] = datetime.fromtimestamp(row[col.name]/1_000_000).strftime("%Y-%m-%d %H:%M:%S.%f")
+                        row[col.name] = datetime.fromtimestamp(row[col.name] / 1_000_000).strftime(
+                            "%Y-%m-%d %H:%M:%S.%f"
+                        )
                     else:
                         row[col.name] = datetime.fromtimestamp(row[col.name]).strftime("%Y-%m-%d %H:%M:%S.%f")
         return row
