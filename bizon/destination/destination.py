@@ -112,7 +112,7 @@ class AbstractDestination(ABC):
         # Last iteration, write all records to destination
         if last_iteration:
 
-            if self.buffer.df_destination_records.height == 0 and self.config.buffer_size == 0:
+            if self.buffer.df_destination_records.height == 0 and self.buffer.is_empty:
                 logger.warning("No records to write to destination, already written, buffer is empty.")
                 return DestinationBufferStatus.RECORDS_WRITTEN
 

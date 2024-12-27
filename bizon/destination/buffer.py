@@ -19,6 +19,11 @@ class DestinationBuffer:
         self.modified_at: List[datetime] = [datetime.now(tz=UTC)]
 
     @property
+    def is_empty(self) -> bool:
+        """Check if buffer is empty"""
+        return self.df_destination_records.height == 0
+
+    @property
     def current_size(self) -> int:
         """Return buffer size"""
         return self.df_destination_records.estimated_size(unit="b")
