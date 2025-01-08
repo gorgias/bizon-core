@@ -127,7 +127,9 @@ class BigQueryDestination(AbstractDestination):
 
         # Check if the schema matches the expected schema
         source_data_fields = (
-            pl.DataFrame(df_destination_records["source_data"].str.json_decode()).schema["source_data"].fields
+            pl.DataFrame(df_destination_records["source_data"].str.json_decode(infer_schema_length=None))
+            .schema["source_data"]
+            .fields
         )
 
         record_schema_fields = [col.name for col in record_schema]
