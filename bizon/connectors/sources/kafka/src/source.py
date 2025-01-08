@@ -312,7 +312,7 @@ class KafkaSource(AbstractSource):
                 )
 
                 # Update the offset for the partition
-                self.topic_offsets.set_partition_offset(message.partition(), message.offset())
+                self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
 
             except Exception as e:
                 logger.error(
