@@ -146,7 +146,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         if self.config.unnest:
             serialized_rows = [
                 self.to_protobuf_serialization(TableRowClass=TableRow, row=self.safe_cast_record_values(row))
-                for row in df_destination_records["source_data"].str.json_decode().to_list()
+                for row in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list()
             ]
         else:
             df_destination_records = df_destination_records.with_columns(
