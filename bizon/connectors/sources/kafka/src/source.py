@@ -10,7 +10,7 @@ from typing import Any, List, Literal, Mapping, Tuple
 
 import fastavro
 from avro.schema import Schema, parse
-from confluent_kafka import Consumer, KafkaException, TopicPartition, KafkaError
+from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
 from loguru import logger
 from pydantic import BaseModel, Field
 from pytz import UTC
