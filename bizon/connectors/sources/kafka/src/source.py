@@ -113,7 +113,7 @@ class KafkaSource(AbstractSource):
 
         self.config: KafkaSourceConfig = config
 
-        # Kafka consumer configuration
+        # Kafka consumer configuration.
         if self.config.authentication.type == AuthType.BASIC:
             self.config.consumer_config["sasl.mechanisms"] = "PLAIN"
             self.config.consumer_config["sasl.username"] = self.config.authentication.params.username
