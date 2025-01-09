@@ -1,12 +1,17 @@
+import json
+import os
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from queue import Queue
 
 import pytest
+import yaml
 from loguru import logger
 
 from bizon.alerting.slack.config import SlackConfig
 from bizon.alerting.slack.handler import SlackHandler
+from bizon.engine.engine import RunnerFactory
 
 
 class DummyWebhookHandler(BaseHTTPRequestHandler):
@@ -49,8 +54,13 @@ def dummy_webhook_server():
     DummyWebhookHandler.payload_queue.queue.clear()
 
 
-def test_slack_log_handler(dummy_webhook_server):
-    slack_handler = SlackHandler(SlackConfig(webhook_url="http://localhost:8123"))
+@pytest.fixture
+def webhook_url():
+    return "http://localhost:8123"
+
+
+def test_slack_log_handler(dummy_webhook_server, webhook_url):
+    slack_handler = SlackHandler(SlackConfig(webhook_url=webhook_url))
 
     slack_handler.add_handlers(levels=["ERROR", "WARNING"])
 
@@ -67,3 +77,60 @@ def test_slack_log_handler(dummy_webhook_server):
     logger.warning(WARNING_MESSAGE)
     warning_payload = DummyWebhookHandler.payload_queue.get(timeout=1)
     assert WARNING_MESSAGE in warning_payload
+
+
+def test_e2e_logger_to_file(dummy_webhook_server, webhook_url):
+
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+
+        BIZON_CONFIG_DUMMY_TO_FILE = f"""
+        name: test_job_3
+
+        source:
+          name: dummy
+          stream: creatures
+          authentication:
+            type: api_key
+            params:
+              token: dummy_key
+
+        destination:
+          name: file
+          config:
+            filepath: {temp.name}
+
+        transforms:
+          - label: transform_data
+            python: |
+              if 'name' in data:
+                data['name'] = fake_variable # this is purposely wrong to trigger an error
+
+        engine:
+          backend:
+            type: postgres
+            config:
+              database: bizon_test
+              schema: public
+              syncCursorInDBEvery: 2
+              host: {os.environ.get("POSTGRES_HOST", "localhost")}
+              port: 5432
+              username: postgres
+              password: bizon
+
+        alerting:
+            type: slack
+
+            config:
+              webhook_url: {webhook_url}
+
+            log_levels:
+                - ERROR
+        """
+
+        runner = RunnerFactory.create_from_config_dict(yaml.safe_load(BIZON_CONFIG_DUMMY_TO_FILE))
+
+        runner.run()
+
+        error_payload = DummyWebhookHandler.payload_queue.get(timeout=1)
+        assert "Error applying transformation" in error_payload
+        assert "fake_variable" in error_payload

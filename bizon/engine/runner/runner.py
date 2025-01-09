@@ -8,7 +8,6 @@ from typing import Union
 
 from loguru import logger
 
-from bizon.alerting.alerts import LogLevel
 from bizon.alerting.models import AlertMethod
 from bizon.cli.utils import parse_from_yaml
 from bizon.common.models import BizonConfig, SyncMetadata
@@ -49,8 +48,11 @@ class AbstractRunner(ABC):
             if self.bizon_config.alerting.type == AlertMethod.SLACK:
                 from bizon.alerting.slack.handler import SlackHandler
 
-                alert = SlackHandler(webhook_url=self.bizon_config.alerting.config.webhook_url)
-            alert.add_handlers(levels=[LogLevel.ERROR, LogLevel.WARNING])
+                alert = SlackHandler(
+                    config=self.bizon_config.alerting.config,
+                    log_levels=self.bizon_config.alerting.log_levels,
+                )
+            alert.add_handlers()
 
     @property
     def is_running(self) -> bool:

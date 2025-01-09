@@ -1,16 +1,17 @@
 import os
-from typing import Dict
+from typing import Dict, List
 
 import requests
 from loguru import logger
 
 from bizon.alerting.alerts import AbstractAlert, AlertMethod
+from bizon.alerting.models import LogLevel
 from bizon.alerting.slack.config import SlackConfig
 
 
 class SlackHandler(AbstractAlert):
-    def __init__(self, config: SlackConfig):
-        super().__init__(type=AlertMethod.SLACK, config=config)
+    def __init__(self, config: SlackConfig, log_levels: List[LogLevel] = [LogLevel.ERROR]):
+        super().__init__(type=AlertMethod.SLACK, config=config, log_levels=log_levels)
         self.webhook_url = config.webhook_url
 
     def handler(self, message: Dict) -> None:
