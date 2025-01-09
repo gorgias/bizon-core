@@ -1,4 +1,3 @@
-import json
 import os
 import tempfile
 import threading
@@ -9,6 +8,7 @@ import pytest
 import yaml
 from loguru import logger
 
+from bizon.alerting.models import LogLevel
 from bizon.alerting.slack.config import SlackConfig
 from bizon.alerting.slack.handler import SlackHandler
 from bizon.engine.engine import RunnerFactory
@@ -30,9 +30,14 @@ class DummyWebhookHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"OK")
 
 
+# Subclass HTTPServer to set allow_reuse_address
+class ReusableHTTPServer(HTTPServer):
+    allow_reuse_address = True
+
+
 # Function to start the server in a separate thread
 def start_dummy_server(host="localhost", port=8123):
-    server = HTTPServer((host, port), DummyWebhookHandler)
+    server = ReusableHTTPServer((host, port), DummyWebhookHandler)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     return server, server_thread
@@ -60,9 +65,9 @@ def webhook_url():
 
 
 def test_slack_log_handler(dummy_webhook_server, webhook_url):
-    slack_handler = SlackHandler(SlackConfig(webhook_url=webhook_url))
+    slack_handler = SlackHandler(SlackConfig(webhook_url=webhook_url), log_levels=[LogLevel.ERROR, LogLevel.WARNING])
 
-    slack_handler.add_handlers(levels=["ERROR", "WARNING"])
+    slack_handler.add_handlers()
 
     ERROR_MESSAGE = "This is an error message"
     WARNING_MESSAGE = "This is a warning message"
