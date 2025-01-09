@@ -1,5 +1,6 @@
 import multiprocessing
 import multiprocessing.synchronize
+import os
 import sys
 import threading
 from abc import ABC, abstractmethod
@@ -7,6 +8,8 @@ from typing import Union
 
 from loguru import logger
 
+from bizon.alerting.alerts import LogLevel
+from bizon.alerting.models import AlertMethod
 from bizon.cli.utils import parse_from_yaml
 from bizon.common.models import BizonConfig, SyncMetadata
 from bizon.destination.destination import AbstractDestination, DestinationFactory
@@ -30,10 +33,24 @@ class AbstractRunner(ABC):
         self.config: dict = config
         self.bizon_config = BizonConfig.model_validate(obj=config)
 
+        # Set pipeline information as environment variables
+        os.environ["BIZON_SYNC_NAME"] = self.bizon_config.name
+        os.environ["BIZON_SOURCE_NAME"] = self.bizon_config.source.name
+        os.environ["BIZON_SOURCE_STREAM"] = self.bizon_config.source.stream
+        os.environ["BIZON_DESTINATION_NAME"] = self.bizon_config.destination.name
+
         # Set log level
         logger.info(f"Setting log level to {self.bizon_config.engine.runner.log_level.name}")
         logger.remove()
         logger.add(sys.stderr, level=self.bizon_config.engine.runner.log_level)
+
+        if self.bizon_config.alerting:
+            logger.info(f"Setting up alerting method {self.bizon_config.alerting.type}")
+            if self.bizon_config.alerting.type == AlertMethod.SLACK:
+                from bizon.alerting.slack.handler import SlackHandler
+
+                alert = SlackHandler(webhook_url=self.bizon_config.alerting.config.webhook_url)
+            alert.add_handlers(levels=[LogLevel.ERROR, LogLevel.WARNING])
 
     @property
     def is_running(self) -> bool:
@@ -119,7 +136,7 @@ class AbstractRunner(ABC):
         if job:
             # If force_create and a job is already running, we cancel it and create a new one
             if force_create:
-                logger.info(f"Found an existing job, cancelling it...")
+                logger.info("Found an existing job, cancelling it...")
                 backend.update_stream_job_status(job_id=job.id, job_status=JobStatus.CANCELED)
                 logger.info(f"Job {job.id} canceled. Creating a new one...")
             # Otherwise we return the existing job
