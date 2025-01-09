@@ -360,6 +360,10 @@ class KafkaSource(AbstractSource):
                 records=[],
             )
 
+        # Commit offsets so we keep track of conumer-group progress in Confluent Cloud
+        # It also allows us to leverage Datadog lag monitors
+        self.consumer.commit(asynchronous=False)
+
         return SourceIteration(
             next_pagination=self.topic_offsets.model_dump(),
             records=records,
