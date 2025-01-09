@@ -106,7 +106,7 @@ class Cursor:
             self.job_status = JobStatus.SUCCEEDED
 
             if self.total_records is not None and self.rows_fetched != self.total_records:
-                logger.warning(
+                logger.info(
                     (
                         f"Source: {self.source_full_name} - Iteration {self.iteration} - "
                         f"Total records fetched: {self.rows_fetched} "
