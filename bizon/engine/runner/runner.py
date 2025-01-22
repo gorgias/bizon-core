@@ -17,6 +17,7 @@ from bizon.engine.backend.models import JobStatus, StreamJob
 from bizon.engine.pipeline.producer import Producer
 from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.engine.runner.config import RunnerStatus
+from bizon.monitoring.client import Monitor
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -117,6 +118,11 @@ class AbstractRunner(ABC):
     def get_transform(bizon_config: BizonConfig) -> Transform:
         """Return the transform instance to apply to the source records"""
         return Transform(transforms=bizon_config.transforms)
+
+    @staticmethod
+    def get_monitoring_client(bizon_config: BizonConfig) -> Monitor:
+        """Return the monitoring client instance"""
+        return Monitor(bizon_config)
 
     @staticmethod
     def get_or_create_job(
@@ -231,8 +237,13 @@ class AbstractRunner(ABC):
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
         destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id)
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
+        monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
 
-        consumer = queue.get_consumer(destination=destination, transform=transform)
+        consumer = queue.get_consumer(
+            destination=destination,
+            transform=transform,
+            monitor=monitor,
+        )
 
         status = consumer.run(stop_event)
         return status

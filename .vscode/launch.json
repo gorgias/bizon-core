@@ -12,7 +12,7 @@
             "name": "Kafka pipeline",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/bizon/sources/kafka/tests/kafka_pipeline.py",
+            "program": "${workspaceFolder}/bizon/connectors/sources/kafka/tests/kafka_pipeline.py",
             "console": "integratedTerminal"
         }
     ]
