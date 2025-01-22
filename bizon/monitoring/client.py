@@ -1,3 +1,5 @@
+import logging
+
 from datadog import initialize, statsd
 
 from bizon.common.models import BizonConfig
@@ -9,10 +11,13 @@ class Monitor:
         self.pipeline_config = pipeline_config
 
         # In Kubernetes, set the host dynamically
-        initialize(
-            statsd_host=pipeline_config.monitoring.datadog_agent_host,
-            statsd_port=pipeline_config.monitoring.datadog_agent_port,
-        )
+        try:
+            initialize(
+                statsd_host=pipeline_config.monitoring.datadog_agent_host,
+                statsd_port=pipeline_config.monitoring.datadog_agent_port,
+            )
+        except Exception as e:
+            logging.info(f"Failed to initialize Datadog agent: {e}")
 
         self.pipeline_monitor_status = "bizon_pipeline.status"
         self.tags = [
