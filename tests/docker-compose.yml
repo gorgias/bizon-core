@@ -22,23 +22,3 @@ services:
     restart: always
     ports:
       - 8080:8080
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.117.0
-    volumes:
-      - ../bizon/monitoring/otel-collector-config.yml:/config.yml
-    command: --config /config.yml
-    ports:
-      - "1888:1888"   # pprof extension
-      - "8888:8888"   # Prometheus metrics exposed by the collector
-      - "8889:8889"   # Prometheus exporter metrics
-      - "13133:13133" # health_check extension
-      - "4317:4317"   # OTLP gRPC receiver
-
-  prometheus:
-    image: prom/prometheus
-    ports:
-      - 9090:9090
-    volumes:
-      - ../bizon/monitoring/prometheus.yml:/etc/prometheus.yml
-    command: --config.file=/etc/prometheus.yml
