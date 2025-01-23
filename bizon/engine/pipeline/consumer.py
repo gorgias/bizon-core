@@ -14,7 +14,7 @@ from bizon.engine.queue.config import (
     AbstractQueueConfig,
     QueueMessage,
 )
-from bizon.monitoring.client import Monitor
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.transform.transform import Transform
 
 
@@ -24,7 +24,7 @@ class AbstractQueueConsumer(ABC):
         config: AbstractQueueConfig,
         destination: AbstractDestination,
         transform: Transform,
-        monitor: Monitor,
+        monitor: AbstractMonitor,
     ):
         self.config = config
         self.destination = destination
@@ -43,7 +43,7 @@ class AbstractQueueConsumer(ABC):
         except Exception as e:
             logger.error(f"Error applying transformation: {e}")
             logger.error(traceback.format_exc())
-            self.monitor.report_pipeline_status(PipelineReturnStatus.TRANSFORM_ERROR)
+            self.monitor.track_pipeline_status(PipelineReturnStatus.TRANSFORM_ERROR)
             return PipelineReturnStatus.TRANSFORM_ERROR
 
         # Handle last iteration
@@ -57,16 +57,15 @@ class AbstractQueueConsumer(ABC):
                     pagination=queue_message.pagination,
                     last_iteration=True,
                 )
-                self.monitor.report_pipeline_status(PipelineReturnStatus.SUCCESS)
+                self.monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
                 return PipelineReturnStatus.SUCCESS
 
         except Exception as e:
             logger.error(f"Error writing records to destination: {e}")
-            self.monitor.report_pipeline_status(PipelineReturnStatus.DESTINATION_ERROR)
+            self.monitor.track_pipeline_status(PipelineReturnStatus.DESTINATION_ERROR)
             return PipelineReturnStatus.DESTINATION_ERROR
 
         # Write the records to the destination
-        self.monitor.report_pipeline_status(PipelineReturnStatus.RUNNING)
         try:
             self.destination.write_records_and_update_cursor(
                 df_source_records=df_source_records,
@@ -78,7 +77,7 @@ class AbstractQueueConsumer(ABC):
 
         except Exception as e:
             logger.error(f"Error writing records to destination: {e}")
-            self.monitor.report_pipeline_status(PipelineReturnStatus.DESTINATION_ERROR)
+            self.monitor.track_pipeline_status(PipelineReturnStatus.DESTINATION_ERROR)
             return PipelineReturnStatus.DESTINATION_ERROR
 
         raise RuntimeError("Should not reach this point")

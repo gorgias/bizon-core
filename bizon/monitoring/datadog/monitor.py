@@ -1,23 +1,23 @@
-import logging
-
 from datadog import initialize, statsd
+from loguru import logger
 
 from bizon.common.models import BizonConfig
 from bizon.engine.pipeline.models import PipelineReturnStatus
+from bizon.monitoring.monitor import AbstractMonitor
 
 
-class Monitor:
+class DatadogMonitor(AbstractMonitor):
     def __init__(self, pipeline_config: BizonConfig):
-        self.pipeline_config = pipeline_config
+        super().__init__(pipeline_config)
 
         # In Kubernetes, set the host dynamically
         try:
             initialize(
-                statsd_host=pipeline_config.monitoring.datadog_agent_host,
-                statsd_port=pipeline_config.monitoring.datadog_agent_port,
+                statsd_host=pipeline_config.monitoring.config.datadog_agent_host,
+                statsd_port=pipeline_config.monitoring.config.datadog_agent_port,
             )
         except Exception as e:
-            logging.info(f"Failed to initialize Datadog agent: {e}")
+            logger.info(f"Failed to initialize Datadog agent: {e}")
 
         self.pipeline_monitor_status = "bizon_pipeline.status"
         self.tags = [
@@ -29,7 +29,7 @@ class Monitor:
 
         self.pipeline_active_pipelines = "bizon_pipeline.active_pipelines"
 
-    def report_pipeline_status(self, pipeline_status: PipelineReturnStatus) -> None:
+    def track_pipeline_status(self, pipeline_status: PipelineReturnStatus) -> None:
         """
         Track the status of the pipeline.
 

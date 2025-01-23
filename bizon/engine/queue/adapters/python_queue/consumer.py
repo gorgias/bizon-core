@@ -10,7 +10,7 @@ from bizon.engine.pipeline.consumer import AbstractQueueConsumer
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.engine.queue.config import QueueMessage
 from bizon.engine.queue.queue import AbstractQueue
-from bizon.monitoring.client import Monitor
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.transform.transform import Transform
 
 from .config import PythonQueueConfig
@@ -23,7 +23,7 @@ class PythonQueueConsumer(AbstractQueueConsumer):
         queue: AbstractQueue,
         destination: AbstractDestination,
         transform: Transform,
-        monitor: Monitor,
+        monitor: AbstractMonitor,
     ):
         super().__init__(
             config,
@@ -32,15 +32,15 @@ class PythonQueueConsumer(AbstractQueueConsumer):
             monitor=monitor,
         )
         self.queue = queue
+        self.monitor.track_pipeline_status(PipelineReturnStatus.RUNNING)
 
     def run(self, stop_event: Union[threading.Event, multiprocessing.synchronize.Event]) -> PipelineReturnStatus:
 
         while True:
-
             # Handle kill signal from the runner
             if stop_event.is_set():
                 logger.info("Stop event is set, closing consumer ...")
-                self.monitor.report_pipeline_status(PipelineReturnStatus.KILLED_BY_RUNNER)
+                self.monitor.track_pipeline_status(PipelineReturnStatus.KILLED_BY_RUNNER)
                 return PipelineReturnStatus.KILLED_BY_RUNNER
 
             # Retrieve the message from the queue

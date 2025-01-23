@@ -8,7 +8,7 @@ from pytz import UTC
 
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.pipeline.consumer import AbstractQueueConsumer
-from bizon.monitoring.client import Monitor
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.models import SourceIteration, source_record_schema
 from bizon.transform.transform import Transform
 
@@ -31,7 +31,10 @@ class AbstractQueue(ABC):
 
     @abstractmethod
     def get_consumer(
-        self, destination: AbstractDestination, transform: Transform, monitor: Monitor
+        self,
+        destination: AbstractDestination,
+        transform: Transform,
+        monitor: AbstractMonitor,
     ) -> AbstractQueueConsumer:
         pass
 
