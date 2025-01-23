@@ -68,4 +68,4 @@ profile_default/
 ipython_config.py
 
 hubspot_credentials.json
-test-pipeline.yml
+test-pipeline*.yml
