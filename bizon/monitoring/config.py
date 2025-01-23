@@ -9,8 +9,18 @@ class MonitorType(str, Enum):
 
 
 class DatadogConfig(BaseModel):
-    datadog_agent_host: str
+    datadog_agent_host: Optional[str]
+    datadog_host_env_var: Optional[str]
     datadog_agent_port: int = 8125
+
+    @property
+    def host_is_configured(self) -> bool:
+        return bool(self.datadog_agent_host or self.datadog_host_env_var)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.host_is_configured:
+            raise ValueError("Either datadog_agent_host or datadog_host_env_var must be specified")
 
 
 class MonitoringConfig(BaseModel):
