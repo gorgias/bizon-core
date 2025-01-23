@@ -46,7 +46,7 @@ python-dotenv = "^1.0.1"
 gspread = { version = "^6.1.2", optional = true }
 
 # Monitoring
-datadog = "^0.50.2"
+datadog = { version = "^0.50.2", optional = true }
 
 [tool.poetry.extras]
 postgres = ["psycopg2-binary"]
