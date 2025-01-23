@@ -9,8 +9,8 @@ class MonitorType(str, Enum):
 
 
 class DatadogConfig(BaseModel):
-    datadog_agent_host: Optional[str]
-    datadog_host_env_var: Optional[str]
+    datadog_agent_host: Optional[str] = None
+    datadog_host_env_var: Optional[str] = None
     datadog_agent_port: int = 8125
 
     @property
