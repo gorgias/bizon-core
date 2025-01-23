@@ -54,7 +54,7 @@ bigquery = ["google-cloud-bigquery-storage", "google-cloud-bigquery", "sqlalchem
 kafka = ["confluent-kafka", "fastavro", "kafka-python", "avro"]
 rabbitmq = ["pika"]
 gsheets = ["gspread"]
-monitoring = ["datadog"]
+datadog = ["datadog"]
 
 ###### [Test] dependencies ######
 [tool.poetry.group.test]

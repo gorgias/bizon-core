@@ -2772,13 +2772,13 @@ type = ["pytest-mypy"]
 
 [extras]
 bigquery = ["google-cloud-bigquery", "google-cloud-bigquery-storage", "protobuf", "sqlalchemy-bigquery"]
+datadog = ["datadog"]
 gsheets = ["gspread"]
 kafka = ["avro", "confluent-kafka", "fastavro", "kafka-python"]
-monitoring = ["datadog"]
 postgres = ["psycopg2-binary"]
 rabbitmq = ["pika"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "7d185af3ea768799cda49ce017945516762d0d097d060aa1d25e57740e617370"
+content-hash = "999a95827f3bf7ddc5941bb41bfddf77e30636f962e331e27557a9cfab7990ea"
