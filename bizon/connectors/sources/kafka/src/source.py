@@ -10,7 +10,7 @@ from typing import Any, List, Literal, Mapping, Tuple
 
 import fastavro
 from avro.schema import Schema, parse
-from confluent_kafka import Consumer, KafkaException, TopicPartition
+from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
 from loguru import logger
 from pydantic import BaseModel, Field
 from pytz import UTC
@@ -113,7 +113,7 @@ class KafkaSource(AbstractSource):
 
         self.config: KafkaSourceConfig = config
 
-        # Kafka consumer configuration
+        # Kafka consumer configuration.
         if self.config.authentication.type == AuthType.BASIC:
             self.config.consumer_config["sasl.mechanisms"] = "PLAIN"
             self.config.consumer_config["sasl.username"] = self.config.authentication.params.username
@@ -245,6 +245,18 @@ class KafkaSource(AbstractSource):
         for message in encoded_messages:
 
             if message.error():
+                # If the message is too large, we skip it and update the offset
+                if message.error().code() == KafkaError.MSG_SIZE_TOO_LARGE:
+                    logger.warning(
+                        (
+                            f"Message for partition {message.partition()} and offset {message.offset()} has been skipped. "
+                            f"Raised MSG_SIZE_TOO_LARGE, we suppose the message does not exist. Double-check in Conlfuent Cloud."
+                        )
+                    )
+                    # We skip the message
+                    self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
+                    continue
+
                 logger.error(
                     (
                         f"Error while consuming message for partition {message.partition()} and offset {message.offset()}: "
@@ -347,6 +359,10 @@ class KafkaSource(AbstractSource):
                 next_pagination={},
                 records=[],
             )
+
+        # Commit offsets so we keep track of conumer-group progress in Confluent Cloud
+        # It also allows us to leverage Datadog lag monitors
+        self.consumer.commit(asynchronous=False)
 
         return SourceIteration(
             next_pagination=self.topic_offsets.model_dump(),

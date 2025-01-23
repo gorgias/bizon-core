@@ -1,5 +1,6 @@
 import multiprocessing
 import multiprocessing.synchronize
+import os
 import sys
 import threading
 from abc import ABC, abstractmethod
@@ -7,6 +8,7 @@ from typing import Union
 
 from loguru import logger
 
+from bizon.alerting.models import AlertMethod
 from bizon.cli.utils import parse_from_yaml
 from bizon.common.models import BizonConfig, SyncMetadata
 from bizon.destination.destination import AbstractDestination, DestinationFactory
@@ -15,6 +17,7 @@ from bizon.engine.backend.models import JobStatus, StreamJob
 from bizon.engine.pipeline.producer import Producer
 from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.engine.runner.config import RunnerStatus
+from bizon.monitoring.monitor import AbstractMonitor, MonitorFactory
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -30,10 +33,27 @@ class AbstractRunner(ABC):
         self.config: dict = config
         self.bizon_config = BizonConfig.model_validate(obj=config)
 
+        # Set pipeline information as environment variables
+        os.environ["BIZON_SYNC_NAME"] = self.bizon_config.name
+        os.environ["BIZON_SOURCE_NAME"] = self.bizon_config.source.name
+        os.environ["BIZON_SOURCE_STREAM"] = self.bizon_config.source.stream
+        os.environ["BIZON_DESTINATION_NAME"] = self.bizon_config.destination.name
+
         # Set log level
         logger.info(f"Setting log level to {self.bizon_config.engine.runner.log_level.name}")
         logger.remove()
         logger.add(sys.stderr, level=self.bizon_config.engine.runner.log_level)
+
+        if self.bizon_config.alerting:
+            logger.info(f"Setting up alerting method {self.bizon_config.alerting.type}")
+            if self.bizon_config.alerting.type == AlertMethod.SLACK:
+                from bizon.alerting.slack.handler import SlackHandler
+
+                alert = SlackHandler(
+                    config=self.bizon_config.alerting.config,
+                    log_levels=self.bizon_config.alerting.log_levels,
+                )
+            alert.add_handlers()
 
     @property
     def is_running(self) -> bool:
@@ -100,6 +120,11 @@ class AbstractRunner(ABC):
         return Transform(transforms=bizon_config.transforms)
 
     @staticmethod
+    def get_monitoring_client(bizon_config: BizonConfig) -> AbstractMonitor:
+        """Return the monitoring client instance"""
+        return MonitorFactory.get_monitor(bizon_config)
+
+    @staticmethod
     def get_or_create_job(
         bizon_config: BizonConfig,
         backend: AbstractBackend,
@@ -119,7 +144,7 @@ class AbstractRunner(ABC):
         if job:
             # If force_create and a job is already running, we cancel it and create a new one
             if force_create:
-                logger.info(f"Found an existing job, cancelling it...")
+                logger.info("Found an existing job, cancelling it...")
                 backend.update_stream_job_status(job_id=job.id, job_status=JobStatus.CANCELED)
                 logger.info(f"Job {job.id} canceled. Creating a new one...")
             # Otherwise we return the existing job
@@ -212,8 +237,13 @@ class AbstractRunner(ABC):
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
         destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id)
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
+        monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
 
-        consumer = queue.get_consumer(destination=destination, transform=transform)
+        consumer = queue.get_consumer(
+            destination=destination,
+            transform=transform,
+            monitor=monitor,
+        )
 
         status = consumer.run(stop_event)
         return status

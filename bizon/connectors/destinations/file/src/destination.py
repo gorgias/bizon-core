@@ -30,7 +30,7 @@ class FileDestination(AbstractDestination):
 
             with open(self.config.filepath, "a") as f:
 
-                for value in df_destination_records["source_data"].str.json_decode().to_list():
+                for value in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list():
 
                     assert set(value.keys()) == schema_keys, "Keys do not match the schema"
 

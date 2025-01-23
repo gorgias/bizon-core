@@ -113,7 +113,7 @@ class AbstractDestination(ABC):
         if last_iteration:
 
             if self.buffer.df_destination_records.height == 0 and self.buffer.is_empty:
-                logger.warning("No records to write to destination, already written, buffer is empty.")
+                logger.info("No records to write to destination, already written, buffer is empty.")
                 return DestinationBufferStatus.RECORDS_WRITTEN
 
             logger.debug("Writing last iteration records to destination")
@@ -143,7 +143,7 @@ class AbstractDestination(ABC):
 
         # Don't write empty records to destination
         if df_destination_records.height == 0 and not last_iteration:
-            logger.warning("No records to write to destination. Check source and queue provider.")
+            logger.info("No records to write to destination. Check source and queue provider.")
             return DestinationBufferStatus.NO_RECORDS
 
         # Write records to destination if buffer size is 0 or streaming

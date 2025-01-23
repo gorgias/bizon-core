@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bizon.alerting.models import AlertingConfig
 from bizon.connectors.destinations.bigquery.src.config import BigQueryConfig
 from bizon.connectors.destinations.bigquery_streaming.src.config import (
     BigQueryStreamingConfig,
@@ -9,6 +10,7 @@ from bizon.connectors.destinations.bigquery_streaming.src.config import (
 from bizon.connectors.destinations.file.src.config import FileDestinationConfig
 from bizon.connectors.destinations.logger.src.config import LoggerConfig
 from bizon.engine.config import EngineConfig
+from bizon.monitoring.config import MonitoringConfig
 from bizon.source.config import SourceConfig, SourceSyncModes
 from bizon.transform.config import TransformModel
 
@@ -45,6 +47,16 @@ class BizonConfig(BaseModel):
     engine: EngineConfig = Field(
         description="Engine configuration",
         default=EngineConfig(),
+    )
+
+    alerting: Optional[AlertingConfig] = Field(
+        description="Alerting configuration",
+        default=None,
+    )
+
+    monitoring: Optional[MonitoringConfig] = Field(
+        description="Monitoring configuration",
+        default=None,
     )
 
 
