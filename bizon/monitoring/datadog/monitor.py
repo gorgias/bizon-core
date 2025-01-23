@@ -1,3 +1,5 @@
+import os
+
 from datadog import initialize, statsd
 from loguru import logger
 
@@ -12,10 +14,17 @@ class DatadogMonitor(AbstractMonitor):
 
         # In Kubernetes, set the host dynamically
         try:
-            initialize(
-                statsd_host=pipeline_config.monitoring.config.datadog_agent_host,
-                statsd_port=pipeline_config.monitoring.config.datadog_agent_port,
-            )
+            datadog_host_from_env_var = os.getenv(pipeline_config.monitoring.config.datadog_host_env_var)
+            if datadog_host_from_env_var:
+                initialize(
+                    statsd_host=datadog_host_from_env_var,
+                    statsd_port=pipeline_config.monitoring.config.datadog_agent_port,
+                )
+            else:
+                initialize(
+                    statsd_host=pipeline_config.monitoring.config.datadog_agent_host,
+                    statsd_port=pipeline_config.monitoring.config.datadog_agent_port,
+                )
         except Exception as e:
             logger.info(f"Failed to initialize Datadog agent: {e}")
 
