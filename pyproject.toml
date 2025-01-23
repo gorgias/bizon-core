@@ -45,12 +45,16 @@ python-dotenv = "^1.0.1"
 # Google Sheets
 gspread = { version = "^6.1.2", optional = true }
 
+# Monitoring
+datadog = "^0.50.2"
+
 [tool.poetry.extras]
 postgres = ["psycopg2-binary"]
 bigquery = ["google-cloud-bigquery-storage", "google-cloud-bigquery", "sqlalchemy-bigquery", "protobuf"]
 kafka = ["confluent-kafka", "fastavro", "kafka-python", "avro"]
 rabbitmq = ["pika"]
 gsheets = ["gspread"]
+monitoring = ["datadog"]
 
 ###### [Test] dependencies ######
 [tool.poetry.group.test]
@@ -72,9 +76,6 @@ snakeviz = "^2.1.2"
 yappi = "^1.3.2"
 pre-commit = "^3.8.0"
 
-
-[tool.poetry.group.monitoring.dependencies]
-datadog = "^0.50.2"
 
 [build-system]
 requires = ["poetry-core"]
