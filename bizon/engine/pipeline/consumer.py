@@ -14,14 +14,22 @@ from bizon.engine.queue.config import (
     AbstractQueueConfig,
     QueueMessage,
 )
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.transform.transform import Transform
 
 
 class AbstractQueueConsumer(ABC):
-    def __init__(self, config: AbstractQueueConfig, destination: AbstractDestination, transform: Transform):
+    def __init__(
+        self,
+        config: AbstractQueueConfig,
+        destination: AbstractDestination,
+        transform: Transform,
+        monitor: AbstractMonitor,
+    ):
         self.config = config
         self.destination = destination
         self.transform = transform
+        self.monitor = monitor
 
     @abstractmethod
     def run(self, stop_event: Union[multiprocessing.synchronize.Event, threading.Event]) -> PipelineReturnStatus:
@@ -35,6 +43,7 @@ class AbstractQueueConsumer(ABC):
         except Exception as e:
             logger.error(f"Error applying transformation: {e}")
             logger.error(traceback.format_exc())
+            self.monitor.track_pipeline_status(PipelineReturnStatus.TRANSFORM_ERROR)
             return PipelineReturnStatus.TRANSFORM_ERROR
 
         # Handle last iteration
@@ -48,10 +57,12 @@ class AbstractQueueConsumer(ABC):
                     pagination=queue_message.pagination,
                     last_iteration=True,
                 )
+                self.monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
                 return PipelineReturnStatus.SUCCESS
 
         except Exception as e:
             logger.error(f"Error writing records to destination: {e}")
+            self.monitor.track_pipeline_status(PipelineReturnStatus.DESTINATION_ERROR)
             return PipelineReturnStatus.DESTINATION_ERROR
 
         # Write the records to the destination
@@ -66,6 +77,7 @@ class AbstractQueueConsumer(ABC):
 
         except Exception as e:
             logger.error(f"Error writing records to destination: {e}")
+            self.monitor.track_pipeline_status(PipelineReturnStatus.DESTINATION_ERROR)
             return PipelineReturnStatus.DESTINATION_ERROR
 
         raise RuntimeError("Should not reach this point")

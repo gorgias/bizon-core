@@ -1,14 +1,14 @@
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
 
 import polars as pl
 from pytz import UTC
 
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.pipeline.consumer import AbstractQueueConsumer
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.models import SourceIteration, source_record_schema
 from bizon.transform.transform import Transform
 
@@ -30,7 +30,12 @@ class AbstractQueue(ABC):
         pass
 
     @abstractmethod
-    def get_consumer(self, destination: AbstractDestination, transform: Transform) -> AbstractQueueConsumer:
+    def get_consumer(
+        self,
+        destination: AbstractDestination,
+        transform: Transform,
+        monitor: AbstractMonitor,
+    ) -> AbstractQueueConsumer:
         pass
 
     @abstractmethod

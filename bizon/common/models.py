@@ -10,6 +10,7 @@ from bizon.connectors.destinations.bigquery_streaming.src.config import (
 from bizon.connectors.destinations.file.src.config import FileDestinationConfig
 from bizon.connectors.destinations.logger.src.config import LoggerConfig
 from bizon.engine.config import EngineConfig
+from bizon.monitoring.config import MonitoringConfig
 from bizon.source.config import SourceConfig, SourceSyncModes
 from bizon.transform.config import TransformModel
 
@@ -50,6 +51,11 @@ class BizonConfig(BaseModel):
 
     alerting: Optional[AlertingConfig] = Field(
         description="Alerting configuration",
+        default=None,
+    )
+
+    monitoring: Optional[MonitoringConfig] = Field(
+        description="Monitoring configuration",
         default=None,
     )
 
