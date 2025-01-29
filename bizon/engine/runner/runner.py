@@ -211,10 +211,16 @@ class AbstractRunner(ABC):
         **kwargs,
     ):
 
+        # Get the source instance
         source = AbstractRunner.get_source(bizon_config=bizon_config, config=config)
+
+        # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
+
+        # Get the backend instance
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
+        # Create the producer instance
         producer = AbstractRunner.get_producer(
             bizon_config=bizon_config,
             source=source,
@@ -222,29 +228,45 @@ class AbstractRunner(ABC):
             backend=backend,
         )
 
+        # Run the producer
         status = producer.run(job_id, stop_event)
         return status
 
     @staticmethod
     def instanciate_and_run_consumer(
         bizon_config: BizonConfig,
+        config: dict,
         job_id: str,
         stop_event: Union[multiprocessing.synchronize.Event, threading.Event],
         **kwargs,
     ):
+        # Get the source callback instance
+        source_callback = AbstractRunner.get_source(bizon_config=bizon_config, config=config).get_source_callback_instance()
 
+        # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
+
+        # Get the backend instance
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
+
+        # Get the destination instance
         destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id)
+
+        # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
+
+        # Get the monitor instance
         monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
 
+        # Create the consumer instance
         consumer = queue.get_consumer(
             destination=destination,
             transform=transform,
             monitor=monitor,
+            source_callback=source_callback,
         )
 
+        # Run the consumer
         status = consumer.run(stop_event)
         return status
 

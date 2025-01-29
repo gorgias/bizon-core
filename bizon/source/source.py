@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
 from typing import Any, List, Optional, Tuple, Type, Union
 
 from requests.auth import AuthBase
@@ -7,6 +6,7 @@ from requests.auth import AuthBase
 from .config import SourceConfig
 from .models import SourceIncrementalState, SourceIteration
 from .session import Session
+from .callback import AbstractSourceCallback, NoOpSourceCallback
 
 
 class AbstractSource(ABC):
@@ -35,6 +35,10 @@ class AbstractSource(ABC):
     def get_config_class() -> Type[SourceConfig]:
         """Return the config class for the source"""
         pass
+
+    def get_source_callback_instance(self) -> AbstractSourceCallback:
+        """Return an instance of the source callback"""
+        return NoOpSourceCallback(config=self.config)
 
     @abstractmethod
     def get_authenticator(self) -> Union[AuthBase, None]:

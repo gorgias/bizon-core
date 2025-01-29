@@ -51,6 +51,7 @@ class ProcessRunner(AbstractRunner):
             future_consumer = executor.submit(
                 AbstractRunner.instanciate_and_run_consumer,
                 self.bizon_config,
+                self.config,
                 job.id,
                 **extra_kwargs,
             )
