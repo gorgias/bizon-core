@@ -18,6 +18,7 @@ from bizon.engine.pipeline.producer import Producer
 from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.engine.runner.config import RunnerStatus
 from bizon.monitoring.monitor import AbstractMonitor, MonitorFactory
+from bizon.source.callback import AbstractSourceCallback
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -80,7 +81,7 @@ class AbstractRunner(ABC):
         )
 
     @staticmethod
-    def get_destination(bizon_config: BizonConfig, backend: AbstractBackend, job_id: str) -> AbstractDestination:
+    def get_destination(bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback) -> AbstractDestination:
         """Get an instance of the destination based on the destination config dict"""
 
         sync_metadata = SyncMetadata.from_bizon_config(job_id=job_id, config=bizon_config)
@@ -89,6 +90,7 @@ class AbstractRunner(ABC):
             sync_metadata=sync_metadata,
             config=bizon_config.destination,
             backend=backend,
+            source_callback=source_callback,
         )
 
     @staticmethod
@@ -252,7 +254,7 @@ class AbstractRunner(ABC):
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
         # Get the destination instance
-        destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id)
+        destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback)
 
         # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
@@ -265,7 +267,6 @@ class AbstractRunner(ABC):
             destination=destination,
             transform=transform,
             monitor=monitor,
-            source_callback=source_callback,
         )
 
         # Run the consumer

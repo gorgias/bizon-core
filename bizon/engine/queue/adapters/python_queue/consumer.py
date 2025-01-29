@@ -11,7 +11,6 @@ from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.engine.queue.config import QueueMessage
 from bizon.engine.queue.queue import AbstractQueue
 from bizon.monitoring.monitor import AbstractMonitor
-from bizon.source.callback import AbstractSourceCallback
 from bizon.transform.transform import Transform
 
 from .config import PythonQueueConfig
@@ -25,14 +24,12 @@ class PythonQueueConsumer(AbstractQueueConsumer):
         destination: AbstractDestination,
         transform: Transform,
         monitor: AbstractMonitor,
-        source_callback: AbstractSourceCallback,
     ):
         super().__init__(
             config,
             destination=destination,
             transform=transform,
             monitor=monitor,
-            source_callback=source_callback,
         )
         self.queue = queue
         self.monitor.track_pipeline_status(PipelineReturnStatus.RUNNING)

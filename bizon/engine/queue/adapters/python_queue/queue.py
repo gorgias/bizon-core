@@ -35,7 +35,6 @@ class PythonQueue(AbstractQueue):
         destination: AbstractDestination,
         transform: Transform,
         monitor: AbstractMonitor,
-        source_callback: AbstractSourceCallback,
     ) -> AbstractQueueConsumer:
         return PythonQueueConsumer(
             config=self.config,
@@ -43,7 +42,6 @@ class PythonQueue(AbstractQueue):
             destination=destination,
             transform=transform,
             monitor=monitor,
-            source_callback=source_callback,
         )
 
     def put_queue_message(self, queue_message: QueueMessage):

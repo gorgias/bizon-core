@@ -15,7 +15,6 @@ from bizon.engine.queue.config import (
     QueueMessage,
 )
 from bizon.monitoring.monitor import AbstractMonitor
-from bizon.source.callback import AbstractSourceCallback
 from bizon.transform.transform import Transform
 
 
@@ -26,13 +25,11 @@ class AbstractQueueConsumer(ABC):
         destination: AbstractDestination,
         transform: Transform,
         monitor: AbstractMonitor,
-        source_callback: AbstractSourceCallback,
     ):
         self.config = config
         self.destination = destination
         self.transform = transform
         self.monitor = monitor
-        self.source_callback = source_callback
 
     @abstractmethod
     def run(self, stop_event: Union[multiprocessing.synchronize.Event, threading.Event]) -> PipelineReturnStatus:

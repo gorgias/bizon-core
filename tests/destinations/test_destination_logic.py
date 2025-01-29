@@ -10,6 +10,7 @@ from bizon.destination.destination import DestinationBufferStatus
 from bizon.destination.models import destination_record_schema
 from bizon.engine.backend.adapters.sqlalchemy.backend import SQLAlchemyBackend
 from bizon.engine.backend.models import JobStatus, StreamJob
+from bizon.source.callback import NoOpSourceCallback
 
 
 @pytest.fixture(scope="function")
@@ -37,6 +38,7 @@ def logger_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
         ),
         config=LoggerDestinationConfig(dummy="bizon"),
         backend=my_sqlite_backend,
+        source_callback=NoOpSourceCallback(config={}),
     )
 
 

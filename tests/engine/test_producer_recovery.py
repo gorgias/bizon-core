@@ -15,6 +15,7 @@ from bizon.engine.backend.models import JobStatus
 from bizon.engine.engine import RunnerFactory
 from bizon.engine.runner.adapters.thread import ThreadRunner
 from bizon.engine.runner.runner import AbstractRunner
+from bizon.source.callback import NoOpSourceCallback
 
 temporary_file = NamedTemporaryFile()
 
@@ -76,6 +77,7 @@ def file_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
             buffer_flush_timeout=0,
         ),
         backend=my_sqlite_backend,
+        source_callback=NoOpSourceCallback(config={})
     )
 
 
