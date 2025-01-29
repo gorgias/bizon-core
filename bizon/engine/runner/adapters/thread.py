@@ -62,6 +62,7 @@ class ThreadRunner(AbstractRunner):
             future_consumer = executor.submit(
                 AbstractRunner.instanciate_and_run_consumer,
                 self.bizon_config,
+                self.config,
                 job.id,
                 consumer_stop_event,
                 **extra_kwargs,

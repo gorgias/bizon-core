@@ -1,4 +1,5 @@
-from bizon.connectors.sources.kafka.src.source import KafkaAuthConfig, KafkaSourceConfig
+from bizon.connectors.sources.kafka.src.config import KafkaAuthConfig
+from bizon.connectors.sources.kafka.src.source import KafkaSourceConfig
 
 
 def test_kafka_source_config():

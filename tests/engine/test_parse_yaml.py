@@ -8,6 +8,7 @@ from bizon.engine.backend.config import BackendTypes
 from bizon.engine.engine import RunnerFactory
 from bizon.engine.queue.adapters.kafka.queue import KafkaQueue
 from bizon.engine.queue.adapters.rabbitmq.queue import RabbitMQ
+from bizon.source.callback import NoOpSourceCallback
 
 
 def test_parse_from_yaml():
@@ -48,7 +49,7 @@ def test_parse_task_runner_python_queue():
     runner = RunnerFactory.create_from_config_dict(config=config)
 
     backend = runner.get_backend(bizon_config=runner.bizon_config)
-    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123")
+    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={}))
 
     assert isinstance(destination, LoggerDestination)
 
@@ -98,7 +99,7 @@ def test_parse_task_runner_kafka_queue():
     runner = RunnerFactory.create_from_config_dict(config=config)
 
     backend = runner.get_backend(bizon_config=runner.bizon_config)
-    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123")
+    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={}))
     queue = runner.get_queue(bizon_config=runner.bizon_config)
 
     assert isinstance(destination, LoggerDestination)
@@ -153,7 +154,7 @@ def test_parse_task_runner_rabbitmq_queue():
     assert runner.bizon_config.name == "test_job"
 
     backend = runner.get_backend(bizon_config=runner.bizon_config)
-    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123")
+    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={}))
     queue = runner.get_queue(bizon_config=runner.bizon_config)
 
     assert isinstance(destination, LoggerDestination)

@@ -15,14 +15,15 @@ from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.source.config import SourceSyncModes
+from bizon.source.source import AbstractSourceCallback
 
 from .config import BigQueryColumn, BigQueryConfigDetails
 
 
 class BigQueryDestination(AbstractDestination):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: BigQueryConfigDetails, backend: AbstractBackend):
-        super().__init__(sync_metadata, config, backend)
+    def __init__(self, sync_metadata: SyncMetadata, config: BigQueryConfigDetails, backend: AbstractBackend, source_callback: AbstractSourceCallback):
+        super().__init__(sync_metadata, config, backend, source_callback)
         self.config: BigQueryConfigDetails = config
 
         if config.authentication and config.authentication.service_account_key:
