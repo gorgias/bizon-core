@@ -18,6 +18,7 @@ from bizon.engine.pipeline.producer import Producer
 from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.engine.runner.config import RunnerStatus
 from bizon.monitoring.monitor import AbstractMonitor, MonitorFactory
+from bizon.source.callback import AbstractSourceCallback
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -80,7 +81,7 @@ class AbstractRunner(ABC):
         )
 
     @staticmethod
-    def get_destination(bizon_config: BizonConfig, backend: AbstractBackend, job_id: str) -> AbstractDestination:
+    def get_destination(bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback) -> AbstractDestination:
         """Get an instance of the destination based on the destination config dict"""
 
         sync_metadata = SyncMetadata.from_bizon_config(job_id=job_id, config=bizon_config)
@@ -89,6 +90,7 @@ class AbstractRunner(ABC):
             sync_metadata=sync_metadata,
             config=bizon_config.destination,
             backend=backend,
+            source_callback=source_callback,
         )
 
     @staticmethod
@@ -211,10 +213,16 @@ class AbstractRunner(ABC):
         **kwargs,
     ):
 
+        # Get the source instance
         source = AbstractRunner.get_source(bizon_config=bizon_config, config=config)
+
+        # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
+
+        # Get the backend instance
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
+        # Create the producer instance
         producer = AbstractRunner.get_producer(
             bizon_config=bizon_config,
             source=source,
@@ -222,29 +230,46 @@ class AbstractRunner(ABC):
             backend=backend,
         )
 
+        # Run the producer
         status = producer.run(job_id, stop_event)
         return status
 
     @staticmethod
     def instanciate_and_run_consumer(
         bizon_config: BizonConfig,
+        config: dict,
         job_id: str,
         stop_event: Union[multiprocessing.synchronize.Event, threading.Event],
         **kwargs,
     ):
+        # Get the source callback instance
+        source_callback = AbstractRunner.get_source(
+            bizon_config=bizon_config, config=config
+        ).get_source_callback_instance()
 
+        # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
+
+        # Get the backend instance
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
-        destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id)
+
+        # Get the destination instance
+        destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback)
+
+        # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
+
+        # Get the monitor instance
         monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
 
+        # Create the consumer instance
         consumer = queue.get_consumer(
             destination=destination,
             transform=transform,
             monitor=monitor,
         )
 
+        # Run the consumer
         status = consumer.run(stop_event)
         return status
 

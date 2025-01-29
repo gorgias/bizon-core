@@ -18,6 +18,7 @@ from google.protobuf.message import Message
 
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
+from bizon.source.callback import AbstractSourceCallback
 from bizon.engine.backend.backend import AbstractBackend
 
 from .config import BigQueryStreamingConfigDetails
@@ -26,8 +27,8 @@ from .proto_utils import get_proto_schema_and_class
 
 class BigQueryStreamingDestination(AbstractDestination):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: BigQueryStreamingConfigDetails, backend: AbstractBackend):
-        super().__init__(sync_metadata, config, backend)
+    def __init__(self, sync_metadata: SyncMetadata, config: BigQueryStreamingConfigDetails, backend: AbstractBackend, source_callback: AbstractSourceCallback): # type: ignore
+        super().__init__(sync_metadata, config, backend, source_callback)
         self.config: BigQueryStreamingConfigDetails = config
 
         if config.authentication and config.authentication.service_account_key:

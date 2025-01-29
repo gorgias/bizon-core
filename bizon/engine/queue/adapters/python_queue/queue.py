@@ -9,6 +9,7 @@ from bizon.destination.destination import AbstractDestination
 from bizon.engine.queue.config import QUEUE_TERMINATION, QueueMessage
 from bizon.engine.queue.queue import AbstractQueue, AbstractQueueConsumer
 from bizon.monitoring.monitor import AbstractMonitor
+from bizon.source.callback import AbstractSourceCallback
 from bizon.source.models import SourceIteration
 from bizon.transform.transform import Transform
 
@@ -30,10 +31,17 @@ class PythonQueue(AbstractQueue):
         pass
 
     def get_consumer(
-        self, destination: AbstractDestination, transform: Transform, monitor: AbstractMonitor
+        self,
+        destination: AbstractDestination,
+        transform: Transform,
+        monitor: AbstractMonitor,
     ) -> AbstractQueueConsumer:
         return PythonQueueConsumer(
-            config=self.config, queue=self.queue, destination=destination, transform=transform, monitor=monitor
+            config=self.config,
+            queue=self.queue,
+            destination=destination,
+            transform=transform,
+            monitor=monitor,
         )
 
     def put_queue_message(self, queue_message: QueueMessage):

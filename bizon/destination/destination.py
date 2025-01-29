@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from bizon.common.models import SyncMetadata
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.engine.backend.models import JobStatus
+from bizon.source.callback import AbstractSourceCallback
 from bizon.source.config import SourceSyncModes
 
 from .buffer import DestinationBuffer
@@ -43,13 +44,14 @@ class DestinationIteration(BaseModel):
 
 class AbstractDestination(ABC):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: AbstractDestinationDetailsConfig, backend: AbstractBackend):
+    def __init__(self, sync_metadata: SyncMetadata, config: AbstractDestinationDetailsConfig, backend: AbstractBackend, source_callback: AbstractSourceCallback):
         self.sync_metadata = sync_metadata
         self.config = config
         self.backend = backend
         self.buffer = DestinationBuffer(
             buffer_size=self.config.buffer_size, buffer_flush_timeout=self.config.buffer_flush_timeout
         )
+        self.source_callback = source_callback
 
     @abstractmethod
     def check_connection(self) -> bool:
@@ -245,6 +247,7 @@ class DestinationFactory:
         sync_metadata: SyncMetadata,
         config: AbstractDestinationConfig,
         backend: AbstractBackend,
+        source_callback: AbstractSourceCallback,
     ) -> AbstractDestination:
 
         if config.name == DestinationTypes.LOGGER:
@@ -252,27 +255,27 @@ class DestinationFactory:
                 LoggerDestination,
             )
 
-            return LoggerDestination(sync_metadata=sync_metadata, config=config.config, backend=backend)
+            return LoggerDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
 
         elif config.name == DestinationTypes.BIGQUERY:
             from bizon.connectors.destinations.bigquery.src.destination import (
                 BigQueryDestination,
             )
 
-            return BigQueryDestination(sync_metadata=sync_metadata, config=config.config, backend=backend)
+            return BigQueryDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
 
         elif config.name == DestinationTypes.BIGQUERY_STREAMING:
             from bizon.connectors.destinations.bigquery_streaming.src.destination import (
                 BigQueryStreamingDestination,
             )
 
-            return BigQueryStreamingDestination(sync_metadata=sync_metadata, config=config.config, backend=backend)
+            return BigQueryStreamingDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
 
         elif config.name == DestinationTypes.FILE:
             from bizon.connectors.destinations.file.src.destination import (
                 FileDestination,
             )
 
-            return FileDestination(sync_metadata=sync_metadata, config=config.config, backend=backend)
+            return FileDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
 
         raise ValueError(f"Destination {config.name}" f"with params {config} not found")
