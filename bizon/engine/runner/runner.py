@@ -241,7 +241,9 @@ class AbstractRunner(ABC):
         **kwargs,
     ):
         # Get the source callback instance
-        source_callback = AbstractRunner.get_source(bizon_config=bizon_config, config=config).get_source_callback_instance()
+        source_callback = AbstractRunner.get_source(
+            bizon_config=bizon_config, config=config
+        ).get_source_callback_instance()
 
         # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)

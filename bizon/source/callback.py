@@ -4,6 +4,7 @@ from typing import List
 from bizon.source.config import SourceConfig
 from bizon.source.models import SourceIteration
 
+
 class AbstractSourceCallback(ABC):
     @abstractmethod
     def __init__(self, config: SourceConfig):
