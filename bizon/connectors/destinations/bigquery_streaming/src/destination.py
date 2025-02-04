@@ -18,8 +18,8 @@ from google.protobuf.message import Message
 
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
-from bizon.source.callback import AbstractSourceCallback
 from bizon.engine.backend.backend import AbstractBackend
+from bizon.source.callback import AbstractSourceCallback
 
 from .config import BigQueryStreamingConfigDetails
 from .proto_utils import get_proto_schema_and_class
@@ -27,7 +27,13 @@ from .proto_utils import get_proto_schema_and_class
 
 class BigQueryStreamingDestination(AbstractDestination):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: BigQueryStreamingConfigDetails, backend: AbstractBackend, source_callback: AbstractSourceCallback): # type: ignore
+    def __init__(
+        self,
+        sync_metadata: SyncMetadata,
+        config: BigQueryStreamingConfigDetails,
+        backend: AbstractBackend,
+        source_callback: AbstractSourceCallback,
+    ):  # type: ignore
         super().__init__(sync_metadata, config, backend, source_callback)
         self.config: BigQueryStreamingConfigDetails = config
 
@@ -122,6 +128,9 @@ class BigQueryStreamingDestination(AbstractDestination):
         return record.SerializeToString()
 
     def load_to_bigquery_via_streaming(self, df_destination_records: pl.DataFrame) -> str:
+        if self.config.use_legacy_streaming_api:
+            return self.load_to_bigquery_via_legacy_streaming(df_destination_records)
+
         # TODO: for now no clustering keys
         clustering_keys = []
 
@@ -181,6 +190,55 @@ class BigQueryStreamingDestination(AbstractDestination):
                 results.append(future.result())
 
         assert all([r == "OK" for r in results]) is True, "Failed to append rows to stream"
+
+    def load_to_bigquery_via_legacy_streaming(self, df_destination_records: pl.DataFrame) -> str:
+        # Create table if it doesnt exist
+        schema = self.get_bigquery_schema()
+        table = bigquery.Table(self.table_id, schema=schema)
+        time_partitioning = TimePartitioning(
+            field=self.config.time_partitioning.field, type_=self.config.time_partitioning.type
+        )
+        table.time_partitioning = time_partitioning
+
+        table = self.bq_client.create_table(table, exists_ok=True)
+
+        if self.config.unnest:
+            rows_to_insert = [
+                self.safe_cast_record_values(row)
+                for row in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list()
+            ]
+        else:
+            df_destination_records = df_destination_records.with_columns(
+                pl.col("bizon_extracted_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_extracted_at"),
+                pl.col("bizon_loaded_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_loaded_at"),
+                pl.col("source_timestamp").dt.strftime("%Y-%m-%d %H:%M:%S").alias("source_timestamp"),
+            )
+            df_destination_records = df_destination_records.rename(
+                {
+                    "bizon_id": "_bizon_id",
+                    "bizon_extracted_at": "_bizon_extracted_at",
+                    "bizon_loaded_at": "_bizon_loaded_at",
+                    "source_record_id": "_source_record_id",
+                    "source_timestamp": "_source_timestamp",
+                    "source_data": "_source_data",
+                }
+            )
+            rows_to_insert = [row for row in df_destination_records.iter_rows(named=True)]
+
+        errors = []
+        for batch in self.batch(rows_to_insert):
+            errors.extend(
+                self.bq_client.insert_rows_json(
+                    table,
+                    batch,
+                    # row_ids parameter is required by BigQuery streaming API but we don't need unique IDs,
+                    # so we pass None for each row in the batch
+                    row_ids=[None] * len(batch),
+                )
+            )
+
+        if errors:
+            raise Exception(f"Encountered errors while inserting rows: {errors}")
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:
         self.load_to_bigquery_via_streaming(df_destination_records=df_destination_records)
