@@ -119,7 +119,7 @@ class KafkaSource(AbstractSource):
 
         partitions: Mapping[int, OffsetPartition] = {}
 
-        for i in range(self.get_number_of_partitions()):
+        for i in range(self.get_number_of_partitions(topic)):
             offsets = self.consumer.get_watermark_offsets(TopicPartition(topic, i))
             partitions[i] = OffsetPartition(first=offsets[0], last=offsets[1])
 
