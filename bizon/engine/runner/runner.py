@@ -159,7 +159,7 @@ class AbstractRunner(ABC):
 
         # If no job is running, we create a new one:
         # Get the total number of records
-        if source.sync_mode == SourceSyncModes.STREAM:
+        if bizon_config.source.config.sync_mode == SourceSyncModes.STREAM:
             total_records = None  # Not available for stream mode
         else:
             total_records = source.get_total_records_count()
