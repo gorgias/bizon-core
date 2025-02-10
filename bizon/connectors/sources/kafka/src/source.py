@@ -128,7 +128,10 @@ class KafkaSource(AbstractSource):
     def get_total_records_count(self) -> int | None:
         """Get the total number of records in the topic, sum of offsets for each partition"""
         # Init the consumer
-        return self.get_offset_partitions().total_offset
+        total_records = 0
+        for topic in [topic.name for topic in self.config.topics]:
+            total_records += self.get_offset_partitions(topic).total_offset
+        return total_records
 
     def parse_global_id_from_serialized_message(self, header_message: bytes) -> int:
         """Parse the global id from the serialized message"""
