@@ -1,5 +1,3 @@
-from loguru import logger
-
 from bizon.cli.utils import parse_from_yaml
 from bizon.common.models import BizonConfig
 

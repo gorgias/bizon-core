@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime
 from typing import List
 
@@ -54,6 +55,11 @@ class StreamingRunner(AbstractRunner):
 
             destination_id_indexed_records = {}
 
+            if len(source_iteration.records) == 0:
+                logger.info("No new records found, stopping iteration")
+                time.sleep(2)
+                continue
+
             for record in source_iteration.records:
                 if destination_id_indexed_records.get(record.destination_id):
                     destination_id_indexed_records[record.destination_id].append(record)
@@ -78,4 +84,5 @@ class StreamingRunner(AbstractRunner):
                 )
             # if os.getenv("ENVIRONMENT") not in ["development", "pytest"]:
             #     source.commit()
+            source.commit()
             iteration += 1

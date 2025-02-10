@@ -85,7 +85,7 @@ class AbstractDestination(ABC):
         )
 
         logger.info(
-            f"Writing in destination from source iteration {self.buffer.from_iteration} to {self.buffer.to_iteration}"
+            f"Writing in destination {self.destination_id} from source iteration {self.buffer.from_iteration} to {self.buffer.to_iteration}"
         )
 
         success, error_msg = self.write_records(df_destination_records=self.buffer.df_destination_records)
@@ -93,7 +93,9 @@ class AbstractDestination(ABC):
         if success:
             # We wrote records to destination so we keep it
             destination_iteration.records_written = self.buffer.df_destination_records.height
-            logger.info(f"Successfully wrote {destination_iteration.records_written} records to destination")
+            logger.info(
+                f"Successfully wrote {destination_iteration.records_written} records to destination {self.destination_id}"
+            )
 
         else:
             # We failed to write records to destination so we keep the error message
@@ -158,7 +160,7 @@ class AbstractDestination(ABC):
 
         # Write records to destination if buffer size is 0 or streaming
         if self.buffer.buffer_size == 0:
-            logger.info("Writing records to destination.")
+            logger.info(f"Writing records to destination {self.destination_id}.")
             self.buffer.add_source_iteration_records_to_buffer(
                 iteration=iteration, df_destination_records=df_destination_records, pagination=pagination
             )
