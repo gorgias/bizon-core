@@ -19,6 +19,7 @@ from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.engine.runner.config import RunnerStatus
 from bizon.monitoring.monitor import AbstractMonitor, MonitorFactory
 from bizon.source.callback import AbstractSourceCallback
+from bizon.source.config import SourceSyncModes
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -158,7 +159,10 @@ class AbstractRunner(ABC):
 
         # If no job is running, we create a new one:
         # Get the total number of records
-        total_records = source.get_total_records_count()
+        if source.sync_mode == SourceSyncModes.STREAM:
+            total_records = None  # Not available for stream mode
+        else:
+            total_records = source.get_total_records_count()
 
         # Create a new job
         job = backend.create_stream_job(
