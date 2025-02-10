@@ -17,6 +17,7 @@ from requests.exceptions import HTTPError
 
 from bizon.source.auth.config import AuthType
 from bizon.source.callback import AbstractSourceCallback
+from bizon.source.config import SourceSyncModes
 from bizon.source.models import SourceIteration, SourceRecord
 from bizon.source.source import AbstractSource
 
@@ -72,6 +73,8 @@ class KafkaSource(AbstractSource):
         # Consumer instance
         self.consumer = Consumer(self.config.consumer_config, logger=silent_logger)
 
+        self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
+
     @staticmethod
     def streams() -> List[str]:
         return ["topic"]
@@ -96,28 +99,31 @@ class KafkaSource(AbstractSource):
 
         topics = self.consumer.list_topics().topics
 
-        if self.config.topic not in topics:
-            logger.error(f"Topic {self.config.topic} not found, available topics: {topics.keys()}")
-            return False, f"Topic {self.config.topic} not found"
+        config_topics = [topic.name for topic in self.config.topics]
 
-        logger.info(f"Topic {self.config.topic} has {len(topics[self.config.topic].partitions)} partitions")
+        for topic in config_topics:
+            if topic not in topics:
+                logger.error(f"Topic {topic} not found, available topics: {topics.keys()}")
+                return False, f"Topic {topic} not found"
+
+            logger.info(f"Topic {topic} has {len(topics[topic].partitions)} partitions")
 
         return True, None
 
-    def get_number_of_partitions(self) -> int:
+    def get_number_of_partitions(self, topic: str) -> int:
         """Get the number of partitions for the topic"""
-        return len(self.consumer.list_topics().topics[self.config.topic].partitions)
+        return len(self.consumer.list_topics().topics[topic].partitions)
 
-    def get_offset_partitions(self) -> TopicOffsets:
+    def get_offset_partitions(self, topic: str) -> TopicOffsets:
         """Get the offsets for each partition of the topic"""
 
         partitions: Mapping[int, OffsetPartition] = {}
 
         for i in range(self.get_number_of_partitions()):
-            offsets = self.consumer.get_watermark_offsets(TopicPartition(self.config.topic, i))
+            offsets = self.consumer.get_watermark_offsets(TopicPartition(topic, i))
             partitions[i] = OffsetPartition(first=offsets[0], last=offsets[1])
 
-        return TopicOffsets(name=self.config.topic, partitions=partitions)
+        return TopicOffsets(name=topic, partitions=partitions)
 
     def get_total_records_count(self) -> int | None:
         """Get the total number of records in the topic, sum of offsets for each partition"""
@@ -204,7 +210,7 @@ class KafkaSource(AbstractSource):
                         )
                     )
                     # We skip the message
-                    self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
+                    # self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
                     continue
 
                 logger.error(
@@ -258,11 +264,12 @@ class KafkaSource(AbstractSource):
                         id=f"partition_{message.partition()}_offset_{message.offset()}",
                         timestamp=datetime.fromtimestamp(message.timestamp()[1] / 1000, tz=UTC),
                         data=data,
+                        destination_id=self.topic_map[message.topic()],
                     )
                 )
 
                 # Update the offset for the partition
-                self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
+                # self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
 
             except Exception as e:
                 logger.error(
@@ -283,41 +290,58 @@ class KafkaSource(AbstractSource):
 
         return records
 
-    def read_topic(self, pagination: dict = None) -> SourceIteration:
-        nb_partitions = self.get_number_of_partitions()
-
-        # Setup offset_pagination
-        self.topic_offsets = TopicOffsets.model_validate(pagination) if pagination else self.get_offset_partitions()
-
-        self.consumer.assign(
-            [
-                TopicPartition(self.config.topic, partition, self.topic_offsets.get_partition_offset(partition))
-                for partition in range(nb_partitions)
-            ]
-        )
-
-        t1 = datetime.now()
-        encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
-        logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
-
-        records = self.parse_encoded_messages(encoded_messages)
-
-        # Update the offset for the partition
-        if not records:
-            logger.info("No new records found, stopping iteration")
+    def read_topics(self, pagination: dict = None) -> SourceIteration:
+        if self.config.sync_mode == SourceSyncModes.STREAM:
+            topics = [topic.name for topic in self.config.topics]
+            self.consumer.subscribe(topics)
+            t1 = datetime.now()
+            encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
+            logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
+            records = self.parse_encoded_messages(encoded_messages)
             return SourceIteration(
                 next_pagination={},
-                records=[],
+                records=records,
             )
+        else:
+            raise NotImplementedError(f"Sync mode {self.config.sync_mode} not supported")
+        # else:
+        #     nb_partitions = self.get_number_of_partitions()
 
-        # Commit offsets so we keep track of conumer-group progress in Confluent Cloud
-        # It also allows us to leverage Datadog lag monitors
-        self.consumer.commit(asynchronous=False)
+        #     # Setup offset_pagination
+        #     self.topic_offsets = TopicOffsets.model_validate(pagination) if pagination else self.get_offset_partitions()
 
-        return SourceIteration(
-            next_pagination=self.topic_offsets.model_dump(),
-            records=records,
-        )
+        #     self.consumer.assign(
+        #         [
+        #             TopicPartition(self.config.topic, partition, self.topic_offsets.get_partition_offset(partition))
+        #             for partition in range(nb_partitions)
+        #         ]
+        #     )
+
+        #     t1 = datetime.now()
+        #     encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
+        #     logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
+
+        #     records = self.parse_encoded_messages(encoded_messages)
+
+        #     # Update the offset for the partition
+        #     if not records:
+        #         logger.info("No new records found, stopping iteration")
+        #         return SourceIteration(
+        #             next_pagination={},
+        #             records=[],
+        #         )
+
+        #     # Commit offsets so we keep track of conumer-group progress in Confluent Cloud
+        #     # It also allows us to leverage Datadog lag monitors
+        #     self.consumer.commit(asynchronous=False)
+
+        #     return SourceIteration(
+        #         next_pagination=self.topic_offsets.model_dump(),
+        #         records=records,
+        #     )
 
     def get(self, pagination: dict = None) -> SourceIteration:
-        return self.read_topic(pagination)
+        return self.read_topics(pagination)
+
+    def commit(self):
+        self.consumer.commit(asynchronous=False)

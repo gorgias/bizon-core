@@ -1,4 +1,5 @@
-from typing import List, Literal, Tuple, Type, Union
+import random
+from typing import List, Literal, Tuple, Union
 
 from pydantic import Field
 from requests.auth import AuthBase
@@ -87,6 +88,7 @@ class DummySource(AbstractSource):
         records = response.get("results")
         next_cursor = response.get("next", {}).get("cursor")
 
+        destinations = ["creatures", "plants"]
         next_pagination = {"cursor": next_cursor} if next_cursor else {}
 
         if records:
@@ -96,6 +98,7 @@ class DummySource(AbstractSource):
                     SourceRecord(
                         id=record["id"],
                         data=record,
+                        destination_id=random.choice(destinations),
                     )
                     for record in records
                 ],

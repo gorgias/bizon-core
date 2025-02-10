@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -10,7 +10,7 @@ from bizon.destination.config import (
 
 
 class FileDestinationDetailsConfig(AbstractDestinationDetailsConfig):
-    filepath: str = Field(..., title="Filepath", description="Path to the file where the data will be written")
+    dummy: str = "dummy"
 
 
 class FileDestinationConfig(AbstractDestinationConfig):

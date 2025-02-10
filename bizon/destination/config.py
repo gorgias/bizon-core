@@ -18,6 +18,11 @@ class DestinationColumn(BaseModel, ABC):
     description: Optional[str] = Field(None, description="Description of the column")
 
 
+class RecordSchemaConfig(BaseModel):
+    destination_id: str = Field(..., description="Destination ID")
+    record_schema: list[DestinationColumn] = Field(..., description="Record schema")
+
+
 class AbstractDestinationDetailsConfig(BaseModel):
 
     # Forbid extra keys in the model
@@ -33,8 +38,8 @@ class AbstractDestinationDetailsConfig(BaseModel):
         description="Maximum time in seconds for buffering after which the records will be written to the destination. Set to 0 to deactivate the timeout buffer check.",  # noqa
     )
 
-    record_schema: Optional[list[DestinationColumn]] = Field(
-        default=None, description="Schema for the records. Required if unnest is set to true."
+    record_schemas: Optional[list[RecordSchemaConfig]] = Field(
+        default=None, description="Schemas for the records. Required if unnest is set to true."
     )
 
     unnest: bool = Field(
@@ -46,10 +51,14 @@ class AbstractDestinationDetailsConfig(BaseModel):
         description="Authentication configuration for the destination, if needed", default=None
     )
 
+    destination_id: Optional[str] = Field(
+        description="Destination ID, identifier to use to store the records in the destination", default=None
+    )
+
     @field_validator("unnest", mode="before")
     def validate_record_schema_if_unnest(cls, value, values):
-        if bool(value) and values.data.get("record_schema") is None:
-            raise ValueError("A `record_schema` must be provided if `unnest` is set to True.")
+        if bool(value) and values.data.get("record_schemas") is None:
+            raise ValueError("A `record_schemas` must be provided if `unnest` is set to True.")
 
         return value
 

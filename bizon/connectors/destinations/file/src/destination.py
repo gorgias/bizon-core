@@ -13,7 +13,13 @@ from .config import FileDestinationDetailsConfig
 
 class FileDestination(AbstractDestination):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: FileDestinationDetailsConfig, backend: AbstractBackend, source_callback: AbstractSourceCallback):
+    def __init__(
+        self,
+        sync_metadata: SyncMetadata,
+        config: FileDestinationDetailsConfig,
+        backend: AbstractBackend,
+        source_callback: AbstractSourceCallback,
+    ):
         super().__init__(sync_metadata, config, backend, source_callback)
         self.config: FileDestinationDetailsConfig = config
 
@@ -27,9 +33,9 @@ class FileDestination(AbstractDestination):
 
         if self.config.unnest:
 
-            schema_keys = set([column.name for column in self.config.record_schema])
+            schema_keys = set([column.name for column in self.record_schemas[self.destination_id]])
 
-            with open(self.config.filepath, "a") as f:
+            with open(f"{self.destination_id}.json", "a") as f:
 
                 for value in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list():
 
@@ -37,12 +43,12 @@ class FileDestination(AbstractDestination):
 
                     # Unnest the source_data column
                     row = {}
-                    for column in self.config.record_schema:
+                    for column in self.record_schemas[self.destination_id]:
                         row[column.name] = value[column.name]
 
                     f.write(f"{json.dumps(row)}\n")
 
         else:
-            df_destination_records.write_ndjson(self.config.filepath)
+            df_destination_records.write_ndjson(f"{self.destination_id}.json")
 
         return True, ""

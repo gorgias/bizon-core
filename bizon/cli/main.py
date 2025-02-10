@@ -83,7 +83,7 @@ def destination():
 @click.option(
     "--runner",
     required=False,
-    type=click.Choice(["thread", "process"]),
+    type=click.Choice(["thread", "process", "stream"]),
     default="thread",
     show_default=True,
     help="Runner type to use. Thread or Process.",

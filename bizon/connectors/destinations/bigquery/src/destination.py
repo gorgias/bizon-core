@@ -22,7 +22,13 @@ from .config import BigQueryColumn, BigQueryConfigDetails
 
 class BigQueryDestination(AbstractDestination):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: BigQueryConfigDetails, backend: AbstractBackend, source_callback: AbstractSourceCallback):
+    def __init__(
+        self,
+        sync_metadata: SyncMetadata,
+        config: BigQueryConfigDetails,
+        backend: AbstractBackend,
+        source_callback: AbstractSourceCallback,
+    ):
         super().__init__(sync_metadata, config, backend, source_callback)
         self.config: BigQueryConfigDetails = config
 
@@ -43,7 +49,7 @@ class BigQueryDestination(AbstractDestination):
 
     @property
     def table_id(self) -> str:
-        tabled_id = self.config.table_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
+        tabled_id = self.destination_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
         return f"{self.project_id}.{self.dataset_id}.{tabled_id}"
 
     @property
@@ -69,7 +75,7 @@ class BigQueryDestination(AbstractDestination):
                     mode=col.mode,
                     description=col.description,
                 )
-                for col in self.config.record_schema
+                for col in self.record_schemas[self.destination_id]
             ]
 
         # Case we don't unnest the data

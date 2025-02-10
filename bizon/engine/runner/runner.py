@@ -81,7 +81,9 @@ class AbstractRunner(ABC):
         )
 
     @staticmethod
-    def get_destination(bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback) -> AbstractDestination:
+    def get_destination(
+        bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback
+    ) -> AbstractDestination:
         """Get an instance of the destination based on the destination config dict"""
 
         sync_metadata = SyncMetadata.from_bizon_config(job_id=job_id, config=bizon_config)
@@ -254,7 +256,9 @@ class AbstractRunner(ABC):
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
         # Get the destination instance
-        destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback)
+        destination = AbstractRunner.get_destination(
+            bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback
+        )
 
         # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)

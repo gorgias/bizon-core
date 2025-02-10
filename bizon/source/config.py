@@ -21,7 +21,7 @@ class SourceSyncModes(str, Enum):
     INCREMENTAL = "incremental"
 
     # Stream mode
-    # - get single RUNNING streamJob  syncs data from the last destination cursor using last pagination, a single RUNNING StreamJob will be created and considered as always running.
+    # - get single RUNNING streamJob syncs data from the last successfuly committed offset in the source system
     STREAM = "stream"
 
 

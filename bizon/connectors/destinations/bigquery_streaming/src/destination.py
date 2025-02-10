@@ -52,7 +52,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
     @property
     def table_id(self) -> str:
-        tabled_id = self.config.table_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
+        tabled_id = self.destination_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
         return f"{self.project_id}.{self.dataset_id}.{tabled_id}"
 
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
@@ -65,7 +65,7 @@ class BigQueryStreamingDestination(AbstractDestination):
                     mode=col.mode,
                     description=col.description,
                 )
-                for col in self.config.record_schema
+                for col in self.record_schemas[self.destination_id]
             ]
 
         # Case we don't unnest the data
@@ -110,7 +110,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         return response.code().name
 
     def safe_cast_record_values(self, row: dict):
-        for col in self.config.record_schema:
+        for col in self.record_schemas[self.destination_id]:
             if col.type in ["TIMESTAMP", "DATETIME"]:
                 if isinstance(row[col.name], int):
                     if row[col.name] > datetime(9999, 12, 31).timestamp():
