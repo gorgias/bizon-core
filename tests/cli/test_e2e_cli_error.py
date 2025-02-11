@@ -20,7 +20,8 @@ source:
 destination:
     name: file
     config:
-        filepath: test.jsonl
+        destination_id: test.jsonl
+        format: json
 
 transforms:
 - label: transform_data

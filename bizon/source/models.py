@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Union
+from typing import List, Optional, Union
 
 import polars as pl
 from pydantic import BaseModel, Field, field_validator
@@ -12,6 +11,7 @@ source_record_schema = pl.Schema(
         ("id", str),
         ("data", str),  # JSON payload dumped as string
         ("timestamp", pl.Datetime(time_unit="us", time_zone="UTC")),
+        ("destination_id", str),
     ]
 )
 
@@ -27,6 +27,8 @@ class SourceRecord(BaseModel):
         default=datetime.now(tz=UTC),
         description="Timestamp of the record as defined by the source. Default is the time of extraction",
     )
+
+    destination_id: Optional[str] = Field(None, description="Destination id")
 
     @field_validator("id", mode="before")
     def coerce_int_to_str(value: Union[int, str]) -> str:

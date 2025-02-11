@@ -44,7 +44,13 @@ class DestinationIteration(BaseModel):
 
 class AbstractDestination(ABC):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: AbstractDestinationDetailsConfig, backend: AbstractBackend, source_callback: AbstractSourceCallback):
+    def __init__(
+        self,
+        sync_metadata: SyncMetadata,
+        config: AbstractDestinationDetailsConfig,
+        backend: AbstractBackend,
+        source_callback: AbstractSourceCallback,
+    ):
         self.sync_metadata = sync_metadata
         self.config = config
         self.backend = backend
@@ -52,6 +58,17 @@ class AbstractDestination(ABC):
             buffer_size=self.config.buffer_size, buffer_flush_timeout=self.config.buffer_flush_timeout
         )
         self.source_callback = source_callback
+        self.destination_id = config.destination_id
+
+        self._record_schemas = None
+
+    @property
+    def record_schemas(self):
+        if self._record_schemas is None and self.config.record_schemas:
+            self._record_schemas = {
+                schema.destination_id: schema.record_schema for schema in self.config.record_schemas
+            }
+        return self._record_schemas
 
     @abstractmethod
     def check_connection(self) -> bool:
@@ -77,7 +94,7 @@ class AbstractDestination(ABC):
         )
 
         logger.info(
-            f"Writing in destination from source iteration {self.buffer.from_iteration} to {self.buffer.to_iteration}"
+            f"Writing in destination {self.destination_id} from source iteration {self.buffer.from_iteration} to {self.buffer.to_iteration}"
         )
 
         success, error_msg = self.write_records(df_destination_records=self.buffer.df_destination_records)
@@ -85,7 +102,9 @@ class AbstractDestination(ABC):
         if success:
             # We wrote records to destination so we keep it
             destination_iteration.records_written = self.buffer.df_destination_records.height
-            logger.info(f"Successfully wrote {destination_iteration.records_written} records to destination")
+            logger.info(
+                f"Successfully wrote {destination_iteration.records_written} records to destination {self.destination_id}"
+            )
 
         else:
             # We failed to write records to destination so we keep the error message
@@ -150,7 +169,7 @@ class AbstractDestination(ABC):
 
         # Write records to destination if buffer size is 0 or streaming
         if self.buffer.buffer_size == 0:
-            logger.info("Writing records to destination.")
+            logger.info(f"Writing records to destination {self.destination_id}.")
             self.buffer.add_source_iteration_records_to_buffer(
                 iteration=iteration, df_destination_records=df_destination_records, pagination=pagination
             )
@@ -255,27 +274,35 @@ class DestinationFactory:
                 LoggerDestination,
             )
 
-            return LoggerDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
+            return LoggerDestination(
+                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+            )
 
         elif config.name == DestinationTypes.BIGQUERY:
             from bizon.connectors.destinations.bigquery.src.destination import (
                 BigQueryDestination,
             )
 
-            return BigQueryDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
+            return BigQueryDestination(
+                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+            )
 
         elif config.name == DestinationTypes.BIGQUERY_STREAMING:
             from bizon.connectors.destinations.bigquery_streaming.src.destination import (
                 BigQueryStreamingDestination,
             )
 
-            return BigQueryStreamingDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
+            return BigQueryStreamingDestination(
+                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+            )
 
         elif config.name == DestinationTypes.FILE:
             from bizon.connectors.destinations.file.src.destination import (
                 FileDestination,
             )
 
-            return FileDestination(sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback)
+            return FileDestination(
+                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+            )
 
         raise ValueError(f"Destination {config.name}" f"with params {config} not found")

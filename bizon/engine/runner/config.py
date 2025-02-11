@@ -9,6 +9,7 @@ from bizon.engine.pipeline.models import PipelineReturnStatus
 class RunnerTypes(str, Enum):
     THREAD = "thread"
     PROCESS = "process"
+    STREAM = "stream"
 
 
 class LoggerLevel(str, Enum):

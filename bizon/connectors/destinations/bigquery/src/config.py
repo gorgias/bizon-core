@@ -84,16 +84,16 @@ class BigQueryAuthentication(BaseModel):
     )
 
 
+class BigQueryRecordSchemaConfig(BaseModel):
+    destination_id: str = Field(..., description="Destination ID")
+    record_schema: list[BigQueryColumn] = Field(..., description="Record schema")
+
+
 class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
 
     # Table details
     project_id: str = Field(..., description="BigQuery Project ID")
     dataset_id: str = Field(..., description="BigQuery Dataset ID")
-    table_id: Optional[str] = Field(
-        default=None,
-        description="Table ID, if not provided it will be inferred from source name",
-    )
-
     dataset_location: str = Field(default="US", description="BigQuery Dataset location")
 
     # GCS Buffer
@@ -106,7 +106,7 @@ class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
     )
 
     # Schema for unnesting
-    record_schema: Optional[list[BigQueryColumn]] = Field(
+    record_schemas: Optional[list[BigQueryRecordSchemaConfig]] = Field(
         default=None, description="Schema for the records. Required if unnest is set to true."
     )
 

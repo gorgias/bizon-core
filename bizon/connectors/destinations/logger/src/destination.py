@@ -13,7 +13,13 @@ from .config import LoggerDestinationConfig
 
 class LoggerDestination(AbstractDestination):
 
-    def __init__(self, sync_metadata: SyncMetadata, config: LoggerDestinationConfig, backend: AbstractBackend, source_callback: AbstractSourceCallback):
+    def __init__(
+        self,
+        sync_metadata: SyncMetadata,
+        config: LoggerDestinationConfig,
+        backend: AbstractBackend,
+        source_callback: AbstractSourceCallback,
+    ):
         super().__init__(
             sync_metadata=sync_metadata,
             config=config,

@@ -3,7 +3,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from bizon.connectors.destinations.bigquery.src.config import BigQueryColumn
+from bizon.connectors.destinations.bigquery.src.config import BigQueryRecordSchemaConfig
 from bizon.destination.config import (
     AbstractDestinationConfig,
     AbstractDestinationDetailsConfig,
@@ -36,16 +36,13 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
     project_id: str
     dataset_id: str
     dataset_location: Optional[str] = "US"
-    table_id: Optional[str] = Field(
-        default=None, description="Table ID, if not provided it will be inferred from source name"
-    )
     time_partitioning: Optional[TimePartitioning] = Field(
         default=TimePartitioning(type=TimePartitioningWindow.DAY, field="_bizon_loaded_at"),
         description="BigQuery Time partitioning type",
     )
     authentication: Optional[BigQueryAuthentication] = None
     bq_max_rows_per_request: Optional[int] = Field(30000, description="Max rows per buffer streaming request.")
-    record_schema: Optional[list[BigQueryColumn]] = Field(
+    record_schemas: Optional[list[BigQueryRecordSchemaConfig]] = Field(
         default=None, description="Schema for the records. Required if unnest is set to true."
     )
     use_legacy_streaming_api: bool = Field(

@@ -1,8 +1,10 @@
+from enum import Enum
+from typing import Any, List, Literal, Mapping
+
+from pydantic import BaseModel, Field
+
 from bizon.source.auth.config import AuthConfig, AuthType
 from bizon.source.config import SourceConfig
-from pydantic import Field
-from typing import Literal, Mapping, Any
-from enum import Enum
 
 
 class SchemaRegistryType(str, Enum):
@@ -32,10 +34,15 @@ def default_kafka_consumer_config():
     }
 
 
+class TopicConfig(BaseModel):
+    name: str = Field(..., description="Kafka topic name")
+    destination_id: str = Field(..., description="Destination id")
+
+
 class KafkaSourceConfig(SourceConfig):
 
     # Mandatory Kafka configuration
-    topic: str = Field(..., description="Kafka topic")
+    topics: List[TopicConfig] = Field(..., description="Kafka topic, comma separated")
     bootstrap_servers: str = Field(..., description="Kafka bootstrap servers")
     group_id: str = Field(default="bizon", description="Kafka group id")
 
