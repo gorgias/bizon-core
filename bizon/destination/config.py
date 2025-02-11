@@ -65,7 +65,6 @@ class AbstractDestinationDetailsConfig(BaseModel):
         raise ValueError("At least one`record_schemas` must be provided if `unnest` is set to True.")
 
 
-
 class AbstractDestinationConfig(BaseModel):
     # Forbid extra keys in the model
     model_config = ConfigDict(extra="forbid")

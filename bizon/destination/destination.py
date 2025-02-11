@@ -65,7 +65,9 @@ class AbstractDestination(ABC):
     @property
     def record_schemas(self):
         if self._record_schemas is None and self.config.record_schemas:
-            self._record_schemas = {self.destination_id: self.config.record_schemas}
+            self._record_schemas = {
+                schema.destination_id: schema.record_schema for schema in self.config.record_schemas
+            }
         return self._record_schemas
 
     @abstractmethod
