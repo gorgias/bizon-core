@@ -27,7 +27,7 @@ def test_e2e_pipeline_should_stop():
         destination:
           name: file
           config:
-            filepath: {temp.name}
+            destination_id: {temp.name}
 
         transforms:
           - label: transform_data

@@ -88,7 +88,6 @@ class DummySource(AbstractSource):
         records = response.get("results")
         next_cursor = response.get("next", {}).get("cursor")
 
-        destinations = ["creatures", "plants"]
         next_pagination = {"cursor": next_cursor} if next_cursor else {}
 
         if records:

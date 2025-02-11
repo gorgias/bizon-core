@@ -12,7 +12,6 @@ df_source_records = pl.DataFrame(
         "data": ['{"key": "value1"}', '{"key": "value2"}'],
         "timestamp": [datetime(2024, 12, 5, 11, 30, tzinfo=UTC), datetime(2024, 12, 5, 12, 30, tzinfo=UTC)],
         "destination_id": ["test", "test"],
-
     },
     schema=source_record_schema,
 )

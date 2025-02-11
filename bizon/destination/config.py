@@ -60,10 +60,10 @@ class AbstractDestinationDetailsConfig(BaseModel):
 
     @field_validator("unnest", mode="before")
     def validate_record_schema_if_unnest(cls, value, values):
-        if bool(value) and len(values.data.get("record_schemas")) > 0:
-            raise ValueError("At least one`record_schemas` must be provided if `unnest` is set to True.")
+        if bool(value) and values.data.get("record_schemas") and len(values.data.get("record_schemas")) > 0:
+            return value
+        raise ValueError("At least one`record_schemas` must be provided if `unnest` is set to True.")
 
-        return value
 
 
 class AbstractDestinationConfig(BaseModel):

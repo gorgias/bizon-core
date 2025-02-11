@@ -7,7 +7,10 @@ import pytest
 import yaml
 
 from bizon.common.models import SyncMetadata
-from bizon.connectors.destinations.file.src.config import FileDestinationDetailsConfig, FileFormat
+from bizon.connectors.destinations.file.src.config import (
+    FileDestinationDetailsConfig,
+    FileFormat,
+)
 from bizon.connectors.destinations.file.src.destination import FileDestination
 from bizon.destination.models import destination_record_schema
 from bizon.engine.backend.adapters.sqlalchemy.backend import SQLAlchemyBackend
