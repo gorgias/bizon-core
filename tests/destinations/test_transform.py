@@ -30,6 +30,7 @@ def test_simple_python_transform():
             "id": ["1", "2", "3"],
             "data": [json.dumps(row) for row in data],
             "timestamp": [20, 30, 40],
+            "destination_id": ["persons", "persons", "persons"],
         },
         schema=source_record_schema,
     )

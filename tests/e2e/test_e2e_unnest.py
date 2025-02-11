@@ -7,7 +7,7 @@ import yaml
 from bizon.engine.engine import RunnerFactory
 
 
-def test_e2e_dummy_to_file():
+def test_e2e_dummy_to_file_unnest():
 
     with tempfile.NamedTemporaryFile(delete=False) as temp:
 
@@ -26,6 +26,19 @@ def test_e2e_dummy_to_file():
           name: file
           config:
             destination_id: {temp.name}
+            unnest: true
+            record_schemas:
+              - destination_id: {temp.name}
+                record_schema:
+                  - name: id
+                    type: string
+                    nullable: false
+                  - name: name
+                    type: string
+                    nullable: false
+                  - name: age
+                    type: integer
+                    nullable: false
 
         transforms:
           - label: transform_data
@@ -54,7 +67,7 @@ def test_e2e_dummy_to_file():
         with open(f"{temp.name}.json", "r") as file:
             for line in file.readlines():
                 record: dict = json.loads(line.strip())
-                records_extracted[record["source_record_id"]] = record["source_data"]
+                records_extracted[record["id"]] = record["name"]
 
-        assert set(records_extracted.keys()) == set(["9898", "88787", "98", "3333", "56565"])
-        assert json.loads(records_extracted["9898"]).get("name") == "BIZON"
+        assert set(records_extracted.keys()) == set([9898, 88787, 98, 3333, 56565])
+        assert records_extracted[9898] == "BIZON"

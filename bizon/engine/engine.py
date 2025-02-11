@@ -1,5 +1,3 @@
-from loguru import logger
-
 from bizon.cli.utils import parse_from_yaml
 from bizon.common.models import BizonConfig
 
@@ -22,6 +20,11 @@ class RunnerFactory:
             from .runner.adapters.process import ProcessRunner
 
             return ProcessRunner(config=config)
+
+        if bizon_config.engine.runner.type == RunnerTypes.STREAM:
+            from .runner.adapters.streaming import StreamingRunner
+
+            return StreamingRunner(config=config)
 
         raise ValueError(f"Runner type {bizon_config.engine.runner.type} is not supported")
 

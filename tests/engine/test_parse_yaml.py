@@ -49,7 +49,9 @@ def test_parse_task_runner_python_queue():
     runner = RunnerFactory.create_from_config_dict(config=config)
 
     backend = runner.get_backend(bizon_config=runner.bizon_config)
-    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={}))
+    destination = runner.get_destination(
+        bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={})
+    )
 
     assert isinstance(destination, LoggerDestination)
 
@@ -99,7 +101,9 @@ def test_parse_task_runner_kafka_queue():
     runner = RunnerFactory.create_from_config_dict(config=config)
 
     backend = runner.get_backend(bizon_config=runner.bizon_config)
-    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={}))
+    destination = runner.get_destination(
+        bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={})
+    )
     queue = runner.get_queue(bizon_config=runner.bizon_config)
 
     assert isinstance(destination, LoggerDestination)
@@ -154,7 +158,9 @@ def test_parse_task_runner_rabbitmq_queue():
     assert runner.bizon_config.name == "test_job"
 
     backend = runner.get_backend(bizon_config=runner.bizon_config)
-    destination = runner.get_destination(bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={}))
+    destination = runner.get_destination(
+        bizon_config=runner.bizon_config, backend=backend, job_id="123", source_callback=NoOpSourceCallback(config={})
+    )
     queue = runner.get_queue(bizon_config=runner.bizon_config)
 
     assert isinstance(destination, LoggerDestination)

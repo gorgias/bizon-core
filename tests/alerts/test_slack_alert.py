@@ -89,7 +89,7 @@ def test_e2e_logger_to_file(dummy_webhook_server, webhook_url):
     with tempfile.NamedTemporaryFile(delete=False) as temp:
 
         BIZON_CONFIG_DUMMY_TO_FILE = f"""
-        name: test_job_3
+        name: test_job_9
 
         source:
           name: dummy
@@ -102,7 +102,7 @@ def test_e2e_logger_to_file(dummy_webhook_server, webhook_url):
         destination:
           name: file
           config:
-            filepath: {temp.name}
+            destination_id: {temp.name}
 
         transforms:
           - label: transform_data

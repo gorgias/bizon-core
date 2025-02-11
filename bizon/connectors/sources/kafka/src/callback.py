@@ -1,6 +1,8 @@
 from typing import List
+
 from bizon.source.callback import AbstractSourceCallback
 from bizon.source.models import SourceIteration
+
 from .config import KafkaSourceConfig
 
 

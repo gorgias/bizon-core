@@ -18,7 +18,7 @@ BIZON_CONFIG_DUMMY_TO_FILE = f"""
     destination:
       name: file
       config:
-        filepath: test_e2e_run__dummy_to_file.jsonl
+        destination_id: test_e2e_run__dummy_to_file.jsonl
 
     engine:
       backend:

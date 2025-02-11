@@ -1,4 +1,5 @@
-from typing import List, Literal, Tuple, Type, Union
+import random
+from typing import List, Literal, Tuple, Union
 
 from pydantic import Field
 from requests.auth import AuthBase
@@ -7,7 +8,7 @@ from bizon.source.auth.authenticators.oauth import Oauth2AuthParams
 from bizon.source.auth.authenticators.token import TokenAuthParams
 from bizon.source.auth.builder import AuthBuilder
 from bizon.source.auth.config import AuthConfig, AuthType
-from bizon.source.config import SourceConfig
+from bizon.source.config import SourceConfig, SourceSyncModes
 from bizon.source.models import SourceIteration, SourceRecord
 from bizon.source.source import AbstractSource
 
@@ -89,6 +90,15 @@ class DummySource(AbstractSource):
 
         next_pagination = {"cursor": next_cursor} if next_cursor else {}
 
+        destination_id = None
+
+        # If we are in streaming mode, we need to get the destination id from the stream name
+        if self.config.sync_mode == SourceSyncModes.STREAM:
+            if next_pagination.get("cursor") == "final-cursor":
+                destination_id = "routed"
+            else:
+                destination_id = self.config.stream
+
         if records:
             return SourceIteration(
                 next_pagination=next_pagination,
@@ -96,6 +106,7 @@ class DummySource(AbstractSource):
                     SourceRecord(
                         id=record["id"],
                         data=record,
+                        destination_id=destination_id,
                     )
                     for record in records
                 ],

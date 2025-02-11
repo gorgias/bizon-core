@@ -5,7 +5,7 @@ from requests.auth import AuthBase
 
 from .callback import AbstractSourceCallback, NoOpSourceCallback
 from .config import SourceConfig
-from .models import SourceIncrementalState, SourceIteration
+from .models import SourceIncrementalState, SourceIteration, SourceRecord
 from .session import Session
 
 
@@ -100,3 +100,7 @@ class AbstractSource(ABC):
     def get_session(self) -> Session:
         """Return a new session"""
         return Session()
+
+    def commit(self, records: Optional[List[SourceRecord]] = None):
+        """Commit the records to the source"""
+        pass

@@ -19,6 +19,7 @@ from bizon.engine.queue.queue import AbstractQueue, QueueFactory
 from bizon.engine.runner.config import RunnerStatus
 from bizon.monitoring.monitor import AbstractMonitor, MonitorFactory
 from bizon.source.callback import AbstractSourceCallback
+from bizon.source.config import SourceSyncModes
 from bizon.source.discover import get_source_instance_by_source_and_stream
 from bizon.source.source import AbstractSource
 from bizon.transform.transform import Transform
@@ -81,7 +82,9 @@ class AbstractRunner(ABC):
         )
 
     @staticmethod
-    def get_destination(bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback) -> AbstractDestination:
+    def get_destination(
+        bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback
+    ) -> AbstractDestination:
         """Get an instance of the destination based on the destination config dict"""
 
         sync_metadata = SyncMetadata.from_bizon_config(job_id=job_id, config=bizon_config)
@@ -156,7 +159,10 @@ class AbstractRunner(ABC):
 
         # If no job is running, we create a new one:
         # Get the total number of records
-        total_records = source.get_total_records_count()
+        if bizon_config.source.sync_mode == SourceSyncModes.STREAM:
+            total_records = None  # Not available for stream mode
+        else:
+            total_records = source.get_total_records_count()
 
         # Create a new job
         job = backend.create_stream_job(
@@ -254,7 +260,9 @@ class AbstractRunner(ABC):
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
         # Get the destination instance
-        destination = AbstractRunner.get_destination(bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback)
+        destination = AbstractRunner.get_destination(
+            bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback
+        )
 
         # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
