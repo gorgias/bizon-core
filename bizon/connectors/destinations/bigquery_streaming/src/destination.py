@@ -5,7 +5,13 @@ from datetime import datetime
 from typing import List, Tuple, Type
 
 import polars as pl
-from google.api_core.exceptions import NotFound
+import urllib3.exceptions
+from google.api_core.exceptions import (
+    NotFound,
+    RetryError,
+    ServerError,
+    ServiceUnavailable,
+)
 from google.cloud import bigquery, bigquery_storage_v1
 from google.cloud.bigquery import DatasetReference, TimePartitioning
 from google.cloud.bigquery_storage_v1.types import (
@@ -15,6 +21,14 @@ from google.cloud.bigquery_storage_v1.types import (
 )
 from google.protobuf.json_format import ParseDict
 from google.protobuf.message import Message
+from loguru import logger
+from requests.exceptions import ConnectionError, SSLError, Timeout
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
@@ -191,6 +205,39 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         assert all([r == "OK" for r in results]) is True, "Failed to append rows to stream"
 
+    @retry(
+        retry=retry_if_exception_type(
+            (
+                ServerError,
+                ServiceUnavailable,
+                SSLError,
+                ConnectionError,
+                Timeout,
+                RetryError,
+                urllib3.exceptions.ProtocolError,
+                urllib3.exceptions.SSLError,
+            )
+        ),
+        wait=wait_exponential(multiplier=2, min=4, max=120),
+        stop=stop_after_attempt(8),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Attempt {retry_state.attempt_number} failed. Retrying in {retry_state.next_action.sleep} seconds..."
+        ),
+    )
+    def _insert_batch(self, table, batch):
+        """Helper method to insert a batch of rows with retry logic"""
+        try:
+            return self.bq_client.insert_rows_json(
+                table,
+                batch,
+                row_ids=[None] * len(batch),
+                timeout=300,  # 5 minutes timeout per request
+                retry=self.bq_client._retry.with_deadline(900),  # 15 minutes total deadline
+            )
+        except Exception as e:
+            logger.error(f"Error inserting batch: {str(e)}, type: {type(e)}")
+            raise
+
     def load_to_bigquery_via_legacy_streaming(self, df_destination_records: pl.DataFrame) -> str:
         # Create table if it doesnt exist
         schema = self.get_bigquery_schema()
@@ -227,15 +274,15 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         errors = []
         for batch in self.batch(rows_to_insert):
-            errors.extend(
-                self.bq_client.insert_rows_json(
-                    table,
-                    batch,
-                    # row_ids parameter is required by BigQuery streaming API but we don't need unique IDs,
-                    # so we pass None for each row in the batch
-                    row_ids=[None] * len(batch),
-                )
-            )
+            try:
+                batch_errors = self._insert_batch(table, batch)
+                if batch_errors:
+                    errors.extend(batch_errors)
+            except Exception as e:
+                logger.error(f"Failed to insert batch on destination {self.destination_id} after all retries: {str(e)}")
+                if isinstance(e, RetryError):
+                    logger.error(f"Retry error details: {e.cause if hasattr(e, 'cause') else 'No cause available'}")
+                raise
 
         if errors:
             raise Exception(f"Encountered errors while inserting rows: {errors}")
