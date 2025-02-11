@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from bizon.common.models import SyncMetadata
-from bizon.connectors.destinations.file.src.config import FileDestinationDetailsConfig
+from bizon.connectors.destinations.file.src.config import FileDestinationDetailsConfig, FileFormat
 from bizon.connectors.destinations.file.src.destination import FileDestination
 from bizon.destination.models import destination_record_schema
 from bizon.engine.backend.adapters.sqlalchemy.backend import SQLAlchemyBackend
@@ -33,7 +33,8 @@ source:
 destination:
   name: file
   config:
-    filepath: {temporary_file.name}
+    format: json
+    destination_id: {temporary_file.name}
 
 engine:
   backend:
@@ -72,12 +73,13 @@ def file_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
             sync_mode="full_refresh",
         ),
         config=FileDestinationDetailsConfig(
-            filepath=temporary_file.name,
+            format=FileFormat.JSON,
+            destination_id=temporary_file.name,
             buffer_size=0,
             buffer_flush_timeout=0,
         ),
         backend=my_sqlite_backend,
-        source_callback=NoOpSourceCallback(config={})
+        source_callback=NoOpSourceCallback(config={}),
     )
 
 

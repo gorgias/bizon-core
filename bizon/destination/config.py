@@ -19,6 +19,9 @@ class DestinationColumn(BaseModel, ABC):
 
 
 class RecordSchemaConfig(BaseModel):
+    # Forbid extra keys in the model
+    model_config = ConfigDict(extra="forbid")
+
     destination_id: str = Field(..., description="Destination ID")
     record_schema: list[DestinationColumn] = Field(..., description="Record schema")
 
@@ -57,8 +60,8 @@ class AbstractDestinationDetailsConfig(BaseModel):
 
     @field_validator("unnest", mode="before")
     def validate_record_schema_if_unnest(cls, value, values):
-        if bool(value) and values.data.get("record_schemas") is None:
-            raise ValueError("A `record_schemas` must be provided if `unnest` is set to True.")
+        if bool(value) and len(values.data.get("record_schemas")) > 0:
+            raise ValueError("At least one`record_schemas` must be provided if `unnest` is set to True.")
 
         return value
 

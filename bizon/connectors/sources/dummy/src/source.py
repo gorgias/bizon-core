@@ -98,7 +98,6 @@ class DummySource(AbstractSource):
                     SourceRecord(
                         id=record["id"],
                         data=record,
-                        destination_id=random.choice(destinations),
                     )
                     for record in records
                 ],

@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from bizon.destination.config import (
     AbstractDestinationConfig,
     AbstractDestinationDetailsConfig,
+    RecordSchemaConfig,
 )
 
 
@@ -33,9 +34,14 @@ def test_config_with_unnest_provided_schema():
         name="file",
         config=AbstractDestinationDetailsConfig(
             unnest=True,
-            record_schema=[
-                {"name": "name", "type": "string", "description": "Name of the user"},
-                {"name": "age", "type": "int", "description": "Age of the user"},
+            record_schemas=[
+                RecordSchemaConfig(
+                    destination_id="cookie",
+                    record_schema=[
+                        {"name": "name", "type": "string", "description": "Name of the user"},
+                        {"name": "age", "type": "int", "description": "Age of the user"},
+                    ],
+                ),
             ],
         ),
     )

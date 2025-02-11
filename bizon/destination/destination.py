@@ -59,7 +59,14 @@ class AbstractDestination(ABC):
         )
         self.source_callback = source_callback
         self.destination_id = config.destination_id
-        self.record_schemas = {conf.destination_id: conf.record_schema for conf in config.record_schemas}
+
+        self._record_schemas = None
+
+    @property
+    def record_schemas(self):
+        if self._record_schemas is None and self.config.record_schemas:
+            self._record_schemas = {self.destination_id: self.config.record_schemas}
+        return self._record_schemas
 
     @abstractmethod
     def check_connection(self) -> bool:

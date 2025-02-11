@@ -71,6 +71,7 @@ class AbstractQueue(ABC):
                 "id": [record.id for record in source_iteration.records],
                 "data": [json.dumps(record.data, ensure_ascii=False) for record in source_iteration.records],
                 "timestamp": [record.timestamp for record in source_iteration.records],
+                "destination_id": [record.destination_id for record in source_iteration.records],
             },
             schema=source_record_schema,
         )

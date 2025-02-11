@@ -25,7 +25,7 @@ def test_e2e_dummy_to_file():
         destination:
           name: file
           config:
-            filepath: {temp.name}
+            destination_id: {temp.name}
 
         transforms:
           - label: transform_data
