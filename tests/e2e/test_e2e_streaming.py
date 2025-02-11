@@ -27,7 +27,6 @@ def test_e2e_dummy_streaming_to_file():
         config:
           unnest: true
           record_schemas:
-
             - destination_id: routed
               record_schema:
                 - name: id
