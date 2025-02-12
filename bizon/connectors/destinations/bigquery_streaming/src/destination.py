@@ -41,6 +41,11 @@ from .proto_utils import get_proto_schema_and_class
 
 class BigQueryStreamingDestination(AbstractDestination):
 
+    # Add constants for limits
+    MAX_ROWS_PER_REQUEST = 10_000
+    MAX_REQUEST_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+    MAX_ROW_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
+
     def __init__(
         self,
         sync_metadata: SyncMetadata,
@@ -232,7 +237,6 @@ class BigQueryStreamingDestination(AbstractDestination):
                 batch,
                 row_ids=[None] * len(batch),
                 timeout=300,  # 5 minutes timeout per request
-                retry=self.bq_client._retry.with_deadline(900),  # 15 minutes total deadline
             )
         except Exception as e:
             logger.error(f"Error inserting batch: {str(e)}, type: {type(e)}")
@@ -293,8 +297,37 @@ class BigQueryStreamingDestination(AbstractDestination):
 
     def batch(self, iterable):
         """
-        Yield successive batches of size `batch_size` from `iterable`.
+        Yield successive batches respecting both row count and size limits.
         """
+        current_batch = []
+        current_batch_size = 0
 
-        for i in range(0, len(iterable), self.bq_max_rows_per_request):
-            yield iterable[i : i + self.bq_max_rows_per_request]  # noqa
+        for item in iterable:
+            # Estimate the size of the item (as JSON)
+            item_size = len(str(item).encode("utf-8"))  # Rough estimation
+
+            if item_size > self.MAX_ROW_SIZE_BYTES:
+                logger.warning(
+                    f"Skipping row larger than {self.MAX_ROW_SIZE_BYTES/1024/1024}MB limit in destination {self.destination_id}"
+                )
+                continue
+
+            # If adding this item would exceed either limit, yield current batch and start new one
+            if (
+                len(current_batch) >= self.MAX_ROWS_PER_REQUEST
+                or current_batch_size + item_size > self.MAX_REQUEST_SIZE_BYTES
+            ):
+                logger.debug(f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB")
+                yield current_batch
+                current_batch = []
+                current_batch_size = 0
+
+            current_batch.append(item)
+            current_batch_size += item_size
+
+        # Don't forget to yield the last batch
+        if current_batch:
+            logger.debug(
+                f"Yielding final batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB"
+            )
+            yield current_batch
