@@ -82,7 +82,6 @@ class StreamingRunner(AbstractRunner):
                     iteration=iteration,
                     pagination=None,
                 )
-            # if os.getenv("ENVIRONMENT") not in ["development", "pytest"]:
-            #     source.commit()
-            source.commit()
+            if os.getenv("ENVIRONMENT") == "production":
+                source.commit()
             iteration += 1
