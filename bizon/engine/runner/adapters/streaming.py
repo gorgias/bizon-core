@@ -10,6 +10,8 @@ from pytz import UTC
 
 from bizon.common.models import BizonConfig
 from bizon.destination.models import transform_to_df_destination_records
+from bizon.engine.pipeline.models import PipelineReturnStatus
+from bizon.engine.runner.config import RunnerStatus
 from bizon.engine.runner.runner import AbstractRunner
 from bizon.source.models import SourceRecord, source_record_schema
 
@@ -34,7 +36,7 @@ class StreamingRunner(AbstractRunner):
     def convert_to_destination_records(df_source_records: pl.DataFrame, extracted_at: datetime) -> pl.DataFrame:
         return transform_to_df_destination_records(df_source_records=df_source_records, extracted_at=extracted_at)
 
-    def run(self):
+    def run(self) -> RunnerStatus:
         job = self.init_job(bizon_config=self.bizon_config, config=self.config)
         backend = self.get_backend(bizon_config=self.bizon_config)
         source = self.get_source(bizon_config=self.bizon_config, config=self.config)
@@ -45,8 +47,10 @@ class StreamingRunner(AbstractRunner):
             source_callback=None,
         )
         transform = self.get_transform(bizon_config=self.bizon_config)
+        monitor = self.get_monitoring_client(bizon_config=self.bizon_config)
         destination.buffer.buffer_size = 0  # force buffer to be flushed immediately
         iteration = 0
+
         while True:
             if source.config.max_iterations and iteration > source.config.max_iterations:
                 logger.info(f"Max iterations {source.config.max_iterations} reached, terminating stream ...")
@@ -58,6 +62,8 @@ class StreamingRunner(AbstractRunner):
             if len(source_iteration.records) == 0:
                 logger.info("No new records found, stopping iteration")
                 time.sleep(2)
+                monitor.track_records_synced(num_records=0, extra_tags={"destination_id": destination.destination_id})
+                monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
                 continue
 
             for record in source_iteration.records:
@@ -82,6 +88,11 @@ class StreamingRunner(AbstractRunner):
                     iteration=iteration,
                     pagination=None,
                 )
+                monitor.track_records_synced(
+                    num_records=len(df_destination_records),
+                    extra_tags={"destination_id": destination_id},
+                )
             if os.getenv("ENVIRONMENT") == "production":
                 source.commit()
             iteration += 1
+            monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)

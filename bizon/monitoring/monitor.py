@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Dict
 
 from bizon.common.models import BizonConfig
 from bizon.engine.pipeline.models import PipelineReturnStatus
@@ -11,12 +12,18 @@ class AbstractMonitor(ABC):
         # Initialize the monitor
 
     @abstractmethod
-    def track_pipeline_status(self, pipeline_status: PipelineReturnStatus) -> None:
+    def track_pipeline_status(self, pipeline_status: PipelineReturnStatus, extra_tags: Dict[str, str] = {}) -> None:
         """
         Track the status of the pipeline.
 
         Args:
             status (str): The current status of the pipeline (e.g., 'running', 'failed', 'completed').
+        """
+        pass
+
+    def track_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
+        """
+        Track the number of records synced in the pipeline.
         """
         pass
 

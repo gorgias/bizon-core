@@ -55,17 +55,24 @@ class RunnerConfig(BaseModel):
 
 
 class RunnerStatus(BaseModel):
-    producer: PipelineReturnStatus
-    consumer: PipelineReturnStatus
+    producer: Optional[PipelineReturnStatus] = None
+    consumer: Optional[PipelineReturnStatus] = None
+    stream: Optional[PipelineReturnStatus] = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not ((self.producer is not None and self.consumer is not None) or self.stream is not None):
+            raise ValueError("Either both producer and consumer must be set, or stream must be set")
 
     @property
     def is_success(self):
-        if self.producer == PipelineReturnStatus.SUCCESS and self.consumer == PipelineReturnStatus.SUCCESS:
-            return True
-        else:
-            return False
+        if self.stream is not None:
+            return self.stream == PipelineReturnStatus.SUCCESS
+        return self.producer == PipelineReturnStatus.SUCCESS and self.consumer == PipelineReturnStatus.SUCCESS
 
     def to_string(self):
+        if self.stream is not None:
+            return f"Pipeline finished with status {'Success' if self.is_success else 'Failure'} (Stream: {self.stream.value})"
         return (
             f"Pipeline finished with status {'Success' if self.is_success else 'Failure'} "
             f"(Producer: {self.producer.value}, Consumer: {self.consumer.value})"
