@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MonitorType(str, Enum):
@@ -12,6 +12,7 @@ class DatadogConfig(BaseModel):
     datadog_agent_host: Optional[str] = None
     datadog_host_env_var: Optional[str] = None
     datadog_agent_port: int = 8125
+    tags: Optional[Dict[str, str]] = Field(default={}, description="Key-value pairs to add to the monitor as tags")
 
     @property
     def host_is_configured(self) -> bool:

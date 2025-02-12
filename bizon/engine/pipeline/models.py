@@ -12,3 +12,4 @@ class PipelineReturnStatus(str, Enum):
     SOURCE_ERROR = "source_error"
     SUCCESS = "success"
     TRANSFORM_ERROR = "transform_error"
+    STREAM_ERROR = "stream_error"
