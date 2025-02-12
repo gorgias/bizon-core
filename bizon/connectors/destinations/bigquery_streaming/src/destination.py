@@ -165,8 +165,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         # Create the stream
         write_client = self.bq_storage_client
-        tabled_id = self.config.table_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
-        parent = write_client.table_path(self.project_id, self.dataset_id, tabled_id)
+        parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
         stream_name = f"{parent}/_default"
 
         # Generating the protocol buffer representation of the message descriptor.
