@@ -96,3 +96,4 @@ class StreamingRunner(AbstractRunner):
                 source.commit()
             iteration += 1
             monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+        return RunnerStatus(stream=PipelineReturnStatus.SUCCESS)  # return when max iterations is reached
