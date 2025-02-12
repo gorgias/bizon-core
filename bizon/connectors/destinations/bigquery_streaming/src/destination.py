@@ -308,7 +308,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
             if item_size > self.MAX_ROW_SIZE_BYTES:
                 logger.warning(
-                    f"Skipping row larger than {self.MAX_ROW_SIZE_BYTES/1024/1024}MB limit in destination {self.destination_id}"
+                    f"Skipping row larger than {self.MAX_ROW_SIZE_BYTES/1024/1024}MB limit in destination {self.table_id}"
                 )
                 continue
 

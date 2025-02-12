@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List
 
 import polars as pl
+from dotenv import load_dotenv
 from loguru import logger
 from pytz import UTC
 
@@ -12,6 +13,8 @@ from bizon.common.models import BizonConfig
 from bizon.destination.models import transform_to_df_destination_records
 from bizon.engine.runner.runner import AbstractRunner
 from bizon.source.models import SourceRecord, source_record_schema
+
+load_dotenv()
 
 
 class StreamingRunner(AbstractRunner):
@@ -82,7 +85,6 @@ class StreamingRunner(AbstractRunner):
                     iteration=iteration,
                     pagination=None,
                 )
-            # if os.getenv("ENVIRONMENT") not in ["development", "pytest"]:
-            #     source.commit()
-            source.commit()
+            if os.getenv("ENVIRONMENT") == "production":
+                source.commit()
             iteration += 1
