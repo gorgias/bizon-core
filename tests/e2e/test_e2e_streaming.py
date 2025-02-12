@@ -8,8 +8,8 @@ from bizon.engine.engine import RunnerFactory
 
 
 def test_e2e_dummy_streaming_to_file():
-      
-      BIZON_CONFIG_DUMMY_TO_FILE = f"""
+
+    BIZON_CONFIG_DUMMY_TO_FILE = f"""
       name: test_job_3
 
       source:
@@ -72,15 +72,15 @@ def test_e2e_dummy_streaming_to_file():
             password: bizon
       """
 
-      runner = RunnerFactory.create_from_config_dict(yaml.safe_load(BIZON_CONFIG_DUMMY_TO_FILE))
+    runner = RunnerFactory.create_from_config_dict(yaml.safe_load(BIZON_CONFIG_DUMMY_TO_FILE))
 
-      runner.run()
+    runner.run()
 
-      records_extracted = {}
-      with open(f"creatures.json", "r") as file:
-          for line in file.readlines():
-              record: dict = json.loads(line.strip())
-              records_extracted[record["id"]] = record["name"]
+    records_extracted = {}
+    with open(f"creatures.json", "r") as file:
+        for line in file.readlines():
+            record: dict = json.loads(line.strip())
+            records_extracted[record["id"]] = record["name"]
 
-      assert set(records_extracted.keys()) == set([9898, 88787])
-      assert records_extracted[9898] == "BIZON"
+    assert set(records_extracted.keys()) == set([9898, 88787])
+    assert records_extracted[9898] == "BIZON"
