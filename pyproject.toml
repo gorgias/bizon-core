@@ -22,6 +22,7 @@ sqlalchemy = "^2.0.32"
 polars = "^1.16.0"
 click = "^8.1.7"
 pytz = "^2024.2"
+tenacity = "^9.0.0"
 
 # Postgres
 psycopg2-binary = { version = "^2.9.9", optional = true }
