@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 from datadog import initialize, statsd
 from loguru import logger
@@ -34,11 +35,12 @@ class DatadogMonitor(AbstractMonitor):
             f"stream:{self.pipeline_config.source.stream}",
             f"source:{self.pipeline_config.source.name}",
             f"destination:{self.pipeline_config.destination.name}",
-        ]
+        ] + [f"{key}:{value}" for key, value in self.pipeline_config.monitoring.config.tags.items()]
 
         self.pipeline_active_pipelines = "bizon_pipeline.active_pipelines"
+        self.pipeline_records_synced = "bizon_pipeline.records_synced"
 
-    def track_pipeline_status(self, pipeline_status: PipelineReturnStatus) -> None:
+    def track_pipeline_status(self, pipeline_status: PipelineReturnStatus, extra_tags: Dict[str, str] = {}) -> None:
         """
         Track the status of the pipeline.
 
@@ -48,5 +50,18 @@ class DatadogMonitor(AbstractMonitor):
 
         statsd.increment(
             self.pipeline_monitor_status,
-            tags=self.tags + [f"status:{pipeline_status}"],
+            tags=self.tags + [f"status:{pipeline_status}"] + [f"{key}:{value}" for key, value in extra_tags.items()],
+        )
+
+    def track_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
+        """
+        Track the number of records synced in the pipeline.
+
+        Args:
+            num_records (int): Number of records synced in this batch
+        """
+        statsd.increment(
+            self.pipeline_records_synced,
+            value=num_records,
+            tags=self.tags + [f"{key}:{value}" for key, value in extra_tags.items()],
         )

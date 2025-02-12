@@ -42,9 +42,9 @@ from .proto_utils import get_proto_schema_and_class
 class BigQueryStreamingDestination(AbstractDestination):
 
     # Add constants for limits
-    MAX_ROWS_PER_REQUEST = 10_000
-    MAX_REQUEST_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
-    MAX_ROW_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
+    MAX_ROWS_PER_REQUEST = 5000  # 5000 (max is 10000)
+    MAX_REQUEST_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB (max is 10MB)
+    MAX_ROW_SIZE_BYTES = 0.9 * 1024 * 1024  # 1 MB
 
     def __init__(
         self,
@@ -165,8 +165,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         # Create the stream
         write_client = self.bq_storage_client
-        tabled_id = self.config.table_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
-        parent = write_client.table_path(self.project_id, self.dataset_id, tabled_id)
+        parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
         stream_name = f"{parent}/_default"
 
         # Generating the protocol buffer representation of the message descriptor.

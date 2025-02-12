@@ -208,8 +208,8 @@ class KafkaSource(AbstractSource):
                 if message.error().code() == KafkaError.MSG_SIZE_TOO_LARGE:
                     logger.warning(
                         (
-                            f"Message for partition {message.partition()} and offset {message.offset()} has been skipped. "
-                            f"Raised MSG_SIZE_TOO_LARGE, we suppose the message does not exist. Double-check in Conlfuent Cloud."
+                            f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} has been skipped. "
+                            f"Raised MSG_SIZE_TOO_LARGE, we suppose the message does not exist. Double-check in Confluent Cloud."
                         )
                     )
                     # We skip the message
@@ -218,7 +218,7 @@ class KafkaSource(AbstractSource):
 
                 logger.error(
                     (
-                        f"Error while consuming message for partition {message.partition()} and offset {message.offset()}: "
+                        f"Error while consuming message for topic {message.topic()} partition {message.partition()} and offset {message.offset()}: "
                         f"{message.error()}"
                     )
                 )
@@ -227,7 +227,7 @@ class KafkaSource(AbstractSource):
             # We skip tombstone messages
             if self.config.skip_message_empty_value and not message.value():
                 logger.debug(
-                    f"Message for partition {message.partition()} and offset {message.offset()} is empty, skipping."
+                    f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} is empty, skipping."
                 )
                 continue
 
@@ -240,7 +240,7 @@ class KafkaSource(AbstractSource):
                 message_schema_id = self.parse_global_id_from_serialized_message(header_message_bytes)
                 logger.error(
                     (
-                        f"Message on partition {message.partition()} at offset {message.offset()} has a  SchemaID of {message_schema_id} which is not found in Registry."
+                        f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {message_schema_id} which is not found in Registry."
                         f"message value: {message.value()}."
                     )
                 )
@@ -277,7 +277,7 @@ class KafkaSource(AbstractSource):
             except Exception as e:
                 logger.error(
                     (
-                        f"Error while decoding message for partition {message.partition()}: {e} at offset {message.offset()} "
+                        f"Error while decoding message for topic {message.topic()} on partition {message.partition()}: {e} at offset {message.offset()} "
                         f"with value: {message.value()} and key: {message.key()}"
                     )
                 )
