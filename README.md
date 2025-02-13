@@ -74,6 +74,13 @@ Queue is the interface used by Bizon to exchange data between `Source` and `Dest
 - `rabbitmq`: RabbitMQ, for production use and high throughput.
 - `kafka`: Apache Kafka, for production use and high throughput and strong persistence.
 
+## Runner configuration
+
+Runner is the interface used by Bizon to run the pipeline. It can be configured in the `runner` section of the configuration file. The following runners are supported:
+- `thread`
+- `process`
+- `stream`
+
 ## Start syncing your data 🚀
 
 ### Quick setup without any dependencies ✌️
