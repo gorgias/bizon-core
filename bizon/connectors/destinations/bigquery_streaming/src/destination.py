@@ -336,7 +336,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         for item in iterable:
             # Estimate the size of the item (as JSON)
-            item_size = len(str(item).encode("utf-8"))  # Rough estimation
+            item_size = len(str(item).encode("utf-8"))
 
             # If adding this item would exceed either limit, yield current batch and start new one
             if (
