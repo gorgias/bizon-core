@@ -274,7 +274,7 @@ class BigQueryStreamingDestination(AbstractDestination):
             raise
 
     def load_to_bigquery_via_legacy_streaming(self, df_destination_records: pl.DataFrame) -> str:
-        # Create table if it doesnt exist
+        # Create table if it does not exist
         schema = self.get_bigquery_schema()
         table = bigquery.Table(self.table_id, schema=schema)
         time_partitioning = TimePartitioning(
