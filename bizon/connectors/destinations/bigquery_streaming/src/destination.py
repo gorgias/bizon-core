@@ -71,8 +71,8 @@ class BigQueryStreamingDestination(AbstractDestination):
 
     @property
     def table_id(self) -> str:
-        tabled_id = self.destination_id or f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
-        return f"{self.project_id}.{self.dataset_id}.{tabled_id}"
+        tabled_id = f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
+        return self.destination_id or f"{self.project_id}.{self.dataset_id}.{tabled_id}"
 
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
 
@@ -162,11 +162,22 @@ class BigQueryStreamingDestination(AbstractDestination):
         )
         table.time_partitioning = time_partitioning
 
+        # Override bigquery client with project's destination id
+        if self.destination_id:
+            project, dataset, table = self.destination_id.split(".")
+            self.bq_client = bigquery.Client(project=project)
+
         table = self.bq_client.create_table(table, exists_ok=True)
 
         # Create the stream
-        write_client = self.bq_storage_client
-        parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
+        if self.destination_id:
+            project, dataset, table = self.destination_id.split(".")
+            write_client = bigquery_storage_v1.BigQueryWriteClient(project=project)
+            parent = write_client.table_path(project, dataset, table)
+        else:
+            write_client = self.bq_storage_client
+            parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
+
         stream_name = f"{parent}/_default"
 
         # Generating the protocol buffer representation of the message descriptor.
