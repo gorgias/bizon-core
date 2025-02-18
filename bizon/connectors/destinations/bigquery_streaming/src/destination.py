@@ -356,7 +356,7 @@ class BigQueryStreamingDestination(AbstractDestination):
                 current_batch.append(item)
                 current_batch_size += item_size
 
-        # Don't forget to yield the last batch
+        # Yield the last batch
         if current_batch:
             logger.debug(
                 f"Yielding streaming batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB"
