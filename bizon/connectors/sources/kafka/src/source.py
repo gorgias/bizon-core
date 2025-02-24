@@ -22,7 +22,7 @@ from bizon.source.models import SourceIteration, SourceRecord
 from bizon.source.source import AbstractSource
 
 from .callback import KafkaSourceCallback
-from .config import KafkaSourceConfig, SchemaRegistryType
+from .config import KafkaSourceConfig, MessageEncoding, SchemaRegistryType
 
 silent_logger = logging.getLogger()
 silent_logger.addHandler(logging.StreamHandler())
@@ -175,11 +175,43 @@ class KafkaSource(AbstractSource):
         schema["name"] = "Envelope"
         return parse(json.dumps(schema))
 
-    def decode(self, msg_value, schema):
-        message_bytes = io.BytesIO(msg_value)
+    def decode_avro(self, message):
+        try:
+            header_message_bytes = self.get_header_bytes(message.value())
+            schema = self.get_message_schema(header_message_bytes)
+
+        except ApicurioSchemaNotFound as e:
+            message_schema_id = self.parse_global_id_from_serialized_message(header_message_bytes)
+            logger.error(
+                (
+                    f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {message_schema_id} which is not found in Registry."
+                    f"message value: {message.value()}."
+                )
+            )
+            logger.error(traceback.format_exc())
+            raise e
+
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            raise e
+
+        message_bytes = io.BytesIO(message.value())
         message_bytes.seek(self.config.nb_bytes_schema_id + 1)
-        event_dict = fastavro.schemaless_reader(message_bytes, schema)
-        return event_dict
+        return fastavro.schemaless_reader(message_bytes, schema)
+
+    def decode_utf_8(self, message):
+        # Decode the message as utf-8
+        return json.loads(message.value().decode("utf-8"))
+
+    def decode(self, message):
+        if self.config.message_encoding == MessageEncoding.AVRO:
+            return self.decode_avro(message)
+
+        elif self.config.message_encoding == MessageEncoding.UTF_8:
+            return self.decode_utf_8(message)
+
+        else:
+            raise ValueError(f"Message encoding {self.config.message_encoding} not supported")
 
     @lru_cache(maxsize=None)
     def get_message_schema(self, header_message: bytes) -> dict:
@@ -231,26 +263,6 @@ class KafkaSource(AbstractSource):
                 )
                 continue
 
-            # Get the schema for the message
-            try:
-                header_message_bytes = self.get_header_bytes(message.value())
-                schema = self.get_message_schema(header_message_bytes)
-
-            except ApicurioSchemaNotFound as e:
-                message_schema_id = self.parse_global_id_from_serialized_message(header_message_bytes)
-                logger.error(
-                    (
-                        f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {message_schema_id} which is not found in Registry."
-                        f"message value: {message.value()}."
-                    )
-                )
-                logger.error(traceback.format_exc())
-                raise e
-
-            except Exception as e:
-                logger.error(traceback.format_exc())
-                raise e
-
             # Decode the message
             try:
 
@@ -259,7 +271,7 @@ class KafkaSource(AbstractSource):
                     "offset": message.offset(),
                     "partition": message.partition(),
                     "timestamp": message.timestamp()[1],
-                    "value": self.decode(message.value(), schema),
+                    "value": self.decode(message),
                     "key": message.key().decode("utf-8"),
                 }
 
@@ -271,9 +283,6 @@ class KafkaSource(AbstractSource):
                         destination_id=self.topic_map[message.topic()],
                     )
                 )
-
-                # Update the offset for the partition
-                # self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
 
             except Exception as e:
                 logger.error(
@@ -294,58 +303,70 @@ class KafkaSource(AbstractSource):
 
         return records
 
-    def read_topics(self, pagination: dict = None) -> SourceIteration:
-        if self.config.sync_mode == SourceSyncModes.STREAM:
-            topics = [topic.name for topic in self.config.topics]
-            self.consumer.subscribe(topics)
-            t1 = datetime.now()
-            encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
-            logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
-            records = self.parse_encoded_messages(encoded_messages)
+    def read_topics_manually(self, pagination: dict = None) -> SourceIteration:
+        """Read the topics manually, we use consumer.assign to assign to the partitions and get the offsets"""
+
+        assert len(self.config.topics) == 1, "Only one topic is supported for manual mode"
+
+        # We will use the first topic for the manual mode
+        topic = self.config.topics[0]
+
+        nb_partitions = self.get_number_of_partitions(topic=topic.name)
+
+        # Setup offset_pagination
+        self.topic_offsets = (
+            TopicOffsets.model_validate(pagination) if pagination else self.get_offset_partitions(topic=topic.name)
+        )
+
+        self.consumer.assign(
+            [
+                TopicPartition(topic.name, partition, self.topic_offsets.get_partition_offset(partition))
+                for partition in range(nb_partitions)
+            ]
+        )
+
+        t1 = datetime.now()
+        encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
+        logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
+
+        records = self.parse_encoded_messages(encoded_messages)
+
+        # Update the offset for the partition
+        if not records:
+            logger.info("No new records found, stopping iteration")
             return SourceIteration(
                 next_pagination={},
-                records=records,
+                records=[],
             )
-        else:
-            raise NotImplementedError(f"Sync mode {self.config.sync_mode} not supported")
-        # else:
-        #     nb_partitions = self.get_number_of_partitions()
 
-        #     # Setup offset_pagination
-        #     self.topic_offsets = TopicOffsets.model_validate(pagination) if pagination else self.get_offset_partitions()
+        # Update the offset for the partition
+        self.topic_offsets.set_partition_offset(encoded_messages[-1].partition(), encoded_messages[-1].offset() + 1)
 
-        #     self.consumer.assign(
-        #         [
-        #             TopicPartition(self.config.topic, partition, self.topic_offsets.get_partition_offset(partition))
-        #             for partition in range(nb_partitions)
-        #         ]
-        #     )
+        return SourceIteration(
+            next_pagination=self.topic_offsets.model_dump(),
+            records=records,
+        )
 
-        #     t1 = datetime.now()
-        #     encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
-        #     logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
-
-        #     records = self.parse_encoded_messages(encoded_messages)
-
-        #     # Update the offset for the partition
-        #     if not records:
-        #         logger.info("No new records found, stopping iteration")
-        #         return SourceIteration(
-        #             next_pagination={},
-        #             records=[],
-        #         )
-
-        #     # Commit offsets so we keep track of conumer-group progress in Confluent Cloud
-        #     # It also allows us to leverage Datadog lag monitors
-        #     self.consumer.commit(asynchronous=False)
-
-        #     return SourceIteration(
-        #         next_pagination=self.topic_offsets.model_dump(),
-        #         records=records,
-        #     )
+    def read_topics_with_subscribe(self, pagination: dict = None) -> SourceIteration:
+        """Read the topics with the subscribe method, pagination will not be used
+        We rely on Kafka to get assigned to the partitions and get the offsets
+        """
+        topics = [topic.name for topic in self.config.topics]
+        self.consumer.subscribe(topics)
+        t1 = datetime.now()
+        encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
+        logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
+        records = self.parse_encoded_messages(encoded_messages)
+        return SourceIteration(
+            next_pagination={},
+            records=records,
+        )
 
     def get(self, pagination: dict = None) -> SourceIteration:
-        return self.read_topics(pagination)
+        if self.config.sync_mode == SourceSyncModes.STREAM:
+            return self.read_topics_with_subscribe(pagination)
+        else:
+            return self.read_topics_manually(pagination)
 
     def commit(self):
         self.consumer.commit(asynchronous=False)

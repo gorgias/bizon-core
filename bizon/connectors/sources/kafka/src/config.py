@@ -11,6 +11,11 @@ class SchemaRegistryType(str, Enum):
     APICURIO = "apicurio"
 
 
+class MessageEncoding(str, Enum):
+    UTF_8 = "utf-8"
+    AVRO = "avro"
+
+
 class KafkaAuthConfig(AuthConfig):
 
     type: Literal[AuthType.BASIC] = AuthType.BASIC  # username and password authentication
@@ -58,6 +63,8 @@ class KafkaSourceConfig(SourceConfig):
         default_factory=default_kafka_consumer_config,
         description="Kafka consumer configuration, as described in the confluent-kafka-python documentation",
     )
+
+    message_encoding: str = Field(default=MessageEncoding.AVRO, description="Encoding to use to decode the message")
 
     # Schema ID header configuration
     nb_bytes_schema_id: Literal[4, 8] = Field(
