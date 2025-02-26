@@ -272,7 +272,7 @@ class KafkaSource(AbstractSource):
                     "partition": message.partition(),
                     "timestamp": message.timestamp()[1],
                     "key": message.key().decode("utf-8"),
-                    "headers": message.headers(),
+                    "headers": dict(message.headers()),
                     "value": self.decode(message),
                 }
 
