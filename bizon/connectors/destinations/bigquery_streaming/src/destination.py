@@ -7,6 +7,7 @@ from typing import List, Tuple, Type
 import polars as pl
 import urllib3.exceptions
 from google.api_core.exceptions import (
+    Conflict,
     NotFound,
     RetryError,
     ServerError,
@@ -77,6 +78,9 @@ class BigQueryStreamingDestination(AbstractDestination):
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
 
         if self.config.unnest:
+            if len(list(self.record_schemas.keys())) == 1:
+                self.destination_id = list(self.record_schemas.keys())[0]
+
             return [
                 bigquery.SchemaField(
                     col.name,
@@ -164,16 +168,16 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         # Override bigquery client with project's destination id
         if self.destination_id:
-            project, dataset, table = self.destination_id.split(".")
+            project, dataset, table_name = self.destination_id.split(".")
             self.bq_client = bigquery.Client(project=project)
 
         table = self.bq_client.create_table(table, exists_ok=True)
 
         # Create the stream
         if self.destination_id:
-            project, dataset, table = self.destination_id.split(".")
-            write_client = bigquery_storage_v1.BigQueryWriteClient(project=project)
-            parent = write_client.table_path(project, dataset, table)
+            project, dataset, table_name = self.destination_id.split(".")
+            write_client = bigquery_storage_v1.BigQueryWriteClient()
+            parent = write_client.table_path(project, dataset, table_name)
         else:
             write_client = self.bq_storage_client
             parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
@@ -282,7 +286,22 @@ class BigQueryStreamingDestination(AbstractDestination):
         )
         table.time_partitioning = time_partitioning
 
-        table = self.bq_client.create_table(table, exists_ok=True)
+        try:
+            table = self.bq_client.create_table(table)
+        except Conflict:
+            table = self.bq_client.get_table(self.table_id)
+            # Compare and update schema if needed
+            existing_fields = {field.name: field for field in table.schema}
+            new_fields = {field.name: field for field in self.get_bigquery_schema()}
+
+            # Find fields that need to be added
+            fields_to_add = [field for name, field in new_fields.items() if name not in existing_fields]
+
+            if fields_to_add:
+                logger.warning(f"Adding new fields to table schema: {[field.name for field in fields_to_add]}")
+                updated_schema = table.schema + fields_to_add
+                table.schema = updated_schema
+                table = self.bq_client.update_table(table, ["schema"])
 
         if self.config.unnest:
             rows_to_insert = [
