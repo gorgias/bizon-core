@@ -271,8 +271,9 @@ class KafkaSource(AbstractSource):
                     "offset": message.offset(),
                     "partition": message.partition(),
                     "timestamp": message.timestamp()[1],
-                    "value": self.decode(message),
                     "key": message.key().decode("utf-8"),
+                    "headers": {key: value.decode('utf-8') for key, value in message.headers()},
+                    "value": self.decode(message),
                 }
 
                 records.append(
