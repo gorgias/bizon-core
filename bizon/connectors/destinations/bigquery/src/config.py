@@ -88,6 +88,8 @@ class BigQueryRecordSchemaConfig(BaseModel):
     destination_id: str = Field(..., description="Destination ID")
     record_schema: list[BigQueryColumn] = Field(..., description="Record schema")
 
+    # BigQuery Clustering Keys
+    clustering_keys: Optional[list[str]] = Field(None, description="Clustering keys")
 
 class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
 

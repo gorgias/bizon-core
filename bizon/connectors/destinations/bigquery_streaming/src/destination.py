@@ -286,6 +286,8 @@ class BigQueryStreamingDestination(AbstractDestination):
         )
         table.time_partitioning = time_partitioning
 
+        if self.clustering_keys:
+            table.clustering_fields = self.clustering_keys[self.destination_id]
         try:
             table = self.bq_client.create_table(table)
         except Conflict:
