@@ -61,6 +61,7 @@ class AbstractDestination(ABC):
         self.destination_id = config.destination_id
 
         self._record_schemas = None
+        self._clustering_keys = None
 
     @property
     def record_schemas(self):
@@ -69,6 +70,14 @@ class AbstractDestination(ABC):
                 schema.destination_id: schema.record_schema for schema in self.config.record_schemas
             }
         return self._record_schemas
+    
+    @property
+    def clustering_keys(self):
+        if self._clustering_keys is None and self.config.record_schemas:
+            self._clustering_keys = {
+                schema.destination_id: schema.clustering_keys for schema in self.config.record_schemas
+            }
+        return self._clustering_keys
 
     @abstractmethod
     def check_connection(self) -> bool:
