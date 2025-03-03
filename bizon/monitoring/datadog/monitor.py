@@ -31,10 +31,10 @@ class DatadogMonitor(AbstractMonitor):
 
         self.pipeline_monitor_status = "bizon_pipeline.status"
         self.tags = [
-            f"name:{self.pipeline_config.name}",
-            f"stream:{self.pipeline_config.source.stream}",
-            f"source:{self.pipeline_config.source.name}",
-            f"destination:{self.pipeline_config.destination.name}",
+            f"pipeline_name:{self.pipeline_config.name}",
+            f"pipeline_stream:{self.pipeline_config.source.stream}",
+            f"pipeline_source:{self.pipeline_config.source.name}",
+            f"pipeline_destination:{self.pipeline_config.destination.name}",
         ] + [f"{key}:{value}" for key, value in self.pipeline_config.monitoring.config.tags.items()]
 
         self.pipeline_active_pipelines = "bizon_pipeline.active_pipelines"
@@ -50,7 +50,9 @@ class DatadogMonitor(AbstractMonitor):
 
         statsd.increment(
             self.pipeline_monitor_status,
-            tags=self.tags + [f"status:{pipeline_status}"] + [f"{key}:{value}" for key, value in extra_tags.items()],
+            tags=self.tags
+            + [f"pipeline_status:{pipeline_status}"]
+            + [f"{key}:{value}" for key, value in extra_tags.items()],
         )
 
     def track_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
