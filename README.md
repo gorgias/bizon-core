@@ -77,9 +77,9 @@ Queue is the interface used by Bizon to exchange data between `Source` and `Dest
 ## Runner configuration
 
 Runner is the interface used by Bizon to run the pipeline. It can be configured in the `runner` section of the configuration file. The following runners are supported:
-- `thread`
-- `process`
-- `stream`
+- `thread` (asynchronous)
+- `process` (asynchronous)
+- `stream` (synchronous)
 
 ## Start syncing your data 🚀
 
