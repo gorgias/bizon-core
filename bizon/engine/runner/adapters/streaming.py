@@ -52,9 +52,11 @@ class StreamingRunner(AbstractRunner):
         iteration = 0
 
         while True:
+
             if source.config.max_iterations and iteration > source.config.max_iterations:
                 logger.info(f"Max iterations {source.config.max_iterations} reached, terminating stream ...")
                 break
+
             source_iteration = source.get()
 
             destination_id_indexed_records = {}
@@ -64,6 +66,7 @@ class StreamingRunner(AbstractRunner):
                 time.sleep(2)
                 monitor.track_records_synced(num_records=0, extra_tags={"destination_id": destination.destination_id})
                 monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+                iteration += 1
                 continue
 
             for record in source_iteration.records:
@@ -94,6 +97,8 @@ class StreamingRunner(AbstractRunner):
                 )
             if os.getenv("ENVIRONMENT") == "production":
                 source.commit()
+
             iteration += 1
+
             monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
         return RunnerStatus(stream=PipelineReturnStatus.SUCCESS)  # return when max iterations is reached
