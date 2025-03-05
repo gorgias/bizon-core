@@ -30,8 +30,13 @@ class BigQueryColumnType(str, Enum):
     DATE = "DATE"
     DATETIME = "DATETIME"
     FLOAT = "FLOAT"
+    FLOAT64 = "FLOAT64"
     GEOGRAPHY = "GEOGRAPHY"
     INTEGER = "INTEGER"
+    INT64 = "INT64"
+    NUMERIC = "NUMERIC"
+    BIGNUMERIC = "BIGNUMERIC"
+    JSON = "JSON"
     RECORD = "RECORD"
     STRING = "STRING"
     TIME = "TIME"
@@ -61,8 +66,7 @@ BIGQUERY_TO_POLARS_TYPE_MAPPING = {
     "TIME": pl.Time,
     "GEOGRAPHY": pl.Object,  # Polars doesn't natively support geography types
     "ARRAY": pl.List,  # Requires additional handling for element types
-    "STRUCT": pl.Struct,  # TODO
-    "JSON": pl.Object,  # TODO
+    "JSON": pl.String,
 }
 
 
