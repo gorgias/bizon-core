@@ -1,10 +1,10 @@
-import json
 import os
 import time
 from datetime import datetime
 from typing import List
 
 import polars as pl
+import simplejson as json
 from loguru import logger
 from pytz import UTC
 
