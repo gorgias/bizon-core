@@ -32,7 +32,7 @@ class StreamingRunner(AbstractRunner):
         return pl.DataFrame(
             {
                 "id": [record.id for record in records],
-                "data": [orjson.dumps(record.data, default=decimal_default) for record in records],
+                "data": [orjson.dumps(record.data, default=decimal_default, strict=False) for record in records],
                 "timestamp": [record.timestamp for record in records],
                 "destination_id": [record.destination_id for record in records],
             },
