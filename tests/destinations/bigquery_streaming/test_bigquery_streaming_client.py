@@ -590,6 +590,7 @@ def test_streaming_unnested_records_legacy(my_backend_config, sync_metadata_stre
     assert success is True
     assert error_msg == ""
 
+
 @pytest.mark.skipif(
     os.getenv("POETRY_ENV_TEST") == "CI",
     reason="Skipping tests that require a BigQuery database",
