@@ -4,8 +4,8 @@ import time
 from datetime import datetime
 from typing import List
 
-import orjson
 import polars as pl
+import simplejson as json
 from loguru import logger
 from pytz import UTC
 
@@ -32,7 +32,7 @@ class StreamingRunner(AbstractRunner):
         return pl.DataFrame(
             {
                 "id": [record.id for record in records],
-                "data": [orjson.dumps(record.data, default=decimal_default, strict=False) for record in records],
+                "data": [json.dumps(record.data, ensure_ascii=False) for record in records],
                 "timestamp": [record.timestamp for record in records],
                 "destination_id": [record.destination_id for record in records],
             },
