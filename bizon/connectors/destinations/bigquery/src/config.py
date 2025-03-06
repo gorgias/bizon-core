@@ -95,6 +95,7 @@ class BigQueryRecordSchemaConfig(BaseModel):
     # BigQuery Clustering Keys
     clustering_keys: Optional[list[str]] = Field(None, description="Clustering keys")
 
+
 class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
 
     # Table details

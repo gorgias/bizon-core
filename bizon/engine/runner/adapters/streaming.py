@@ -1,4 +1,3 @@
-import decimal
 import os
 import time
 from datetime import datetime
@@ -15,12 +14,6 @@ from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.engine.runner.config import RunnerStatus
 from bizon.engine.runner.runner import AbstractRunner
 from bizon.source.models import SourceRecord, source_record_schema
-
-
-def decimal_default(obj):
-    if isinstance(obj, decimal.Decimal):
-        return str(obj)
-    raise TypeError
 
 
 class StreamingRunner(AbstractRunner):

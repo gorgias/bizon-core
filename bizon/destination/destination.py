@@ -70,7 +70,7 @@ class AbstractDestination(ABC):
                 schema.destination_id: schema.record_schema for schema in self.config.record_schemas
             }
         return self._record_schemas
-    
+
     @property
     def clustering_keys(self):
         if self._clustering_keys is None and self.config.record_schemas:
