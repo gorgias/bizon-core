@@ -96,7 +96,7 @@ class BigQueryStreamingDestination(AbstractDestination):
             return [
                 bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
                 bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
-                bigquery.SchemaField("_source_data", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("_source_data", "JSON", mode="NULLABLE"),
                 bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
                 bigquery.SchemaField(
                     "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
@@ -286,7 +286,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         )
         table.time_partitioning = time_partitioning
 
-        if self.clustering_keys[self.destination_id]:
+        if self.clustering_keys and self.clustering_keys[self.destination_id]:
             table.clustering_fields = self.clustering_keys[self.destination_id]
         try:
             table = self.bq_client.create_table(table)
