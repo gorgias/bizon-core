@@ -37,7 +37,7 @@ df_destination_records = pl.DataFrame(
         "bizon_loaded_at": [datetime(2024, 12, 5, 12, 30), datetime(2024, 12, 5, 13, 30)],
         "source_record_id": ["record_1", "record_2"],
         "source_timestamp": [datetime(2024, 12, 5, 11, 30), datetime(2024, 12, 5, 12, 30)],
-        "source_data": ["cookies", "cream"],
+        "source_data": ['{"cookies": 2, "price": 3, "cream": 1}', '{"cookies": 1, "price": 2, "cream": 2}'],
     },
     schema=destination_record_schema,
 )
@@ -49,7 +49,7 @@ def sync_metadata_stream() -> SyncMetadata:
         name="streaming_api",
         job_id="rfou98C9DJH",
         source_name="cookie_test",
-        stream_name="test_stream",
+        stream_name="test_stream_2",
         destination_name="bigquery",
         sync_mode="stream",
     )
