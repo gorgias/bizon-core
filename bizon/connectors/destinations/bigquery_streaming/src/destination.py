@@ -144,10 +144,11 @@ class BigQueryStreamingDestination(AbstractDestination):
                         try:
                             row[col.name] = datetime.fromtimestamp(row[col.name]).strftime("%Y-%m-%d %H:%M:%S.%f")
                         except ValueError:
-                            error_message = f"""
-                                Error casting timestamp on column {col.name} for value {row[col.name]}.
-                                Consider using a transformation.
-                            """
+                            error_message = (
+                                f"Error casting timestamp for destination '{self.destination_id}' column '{col.name}'. "
+                                f"Invalid timestamp value: {row[col.name]} ({type(row[col.name])}). "
+                                "Consider using a transformation."
+                            )
                             logger.error(error_message)
                             raise ValueError(error_message)
         return row
