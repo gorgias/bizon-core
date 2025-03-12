@@ -64,7 +64,6 @@ class StreamingRunner(AbstractRunner):
             if len(source_iteration.records) == 0:
                 logger.info("No new records found, stopping iteration")
                 time.sleep(2)
-                monitor.track_records_synced(num_records=0, extra_tags={"destination_id": destination.destination_id})
                 monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
                 iteration += 1
                 continue
