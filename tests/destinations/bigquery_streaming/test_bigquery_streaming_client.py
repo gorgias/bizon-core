@@ -318,7 +318,12 @@ def test_error_on_added_column(my_backend_config, sync_metadata_stream):
     os.getenv("POETRY_ENV_TEST") == "CI",
     reason="Skipping tests that require a BigQuery database",
 )
-def test_propagate_added_column(my_backend_config, sync_metadata_stream):
+def test_enforce_record_schema_columns(my_backend_config, sync_metadata_stream):
+    """
+    Test that the record schema is enforced on the destination.
+    Any extra columns not in the record schema will be ignored.
+    Any columns in the record schema that are not present in the record will be set to NULL.
+    """
     bigquery_config = BigQueryStreamingConfig(
         name=DestinationTypes.BIGQUERY_STREAMING,
         config=BigQueryStreamingConfigDetails(
@@ -329,7 +334,7 @@ def test_propagate_added_column(my_backend_config, sync_metadata_stream):
             time_partitioning={"type": "DAY", "field": "created_at"},
             record_schemas=[
                 {
-                    "destination_id": f"{TEST_PROJECT_ID}.{TEST_DATASET_ID}.{TEST_TABLE_ID}_propagate",
+                    "destination_id": f"{TEST_PROJECT_ID}.{TEST_DATASET_ID}.{TEST_TABLE_ID}_enforce_schema",
                     "record_schema": [
                         {
                             "name": "id",
@@ -361,8 +366,8 @@ def test_propagate_added_column(my_backend_config, sync_metadata_stream):
 
     # Insert proper records
     records = [
-        {"id": 1, "name": "Alice", "created_at": "2021-01-01 00:00:00"},
-        {"id": 2, "name": "Bob", "created_at": "2021-01-01 00:00:00"},
+        {"id": 1, "name": "Alice", "created_at": "2021-01-01 00:00:00", "column_not_in_schema": "value"},
+        {"id": 2, "name": "Bob", "created_at": "2021-01-01 00:00:00", "column_not_in_schema": "value"},
     ]
     df_unnested_records = pl.DataFrame(
         {
