@@ -153,6 +153,21 @@ class BigQueryStreamingDestination(AbstractDestination):
                             raise ValueError(error_message)
         return row
 
+    def enforce_record_schema_columns(self, row: dict):
+        """Enforce schema columns on a row while optimizing for performance."""
+
+        _schema_columns_set = {col.name for col in self.record_schemas[self.destination_id]}
+
+        # Use dictionary comprehension with pre-computed set
+        filtered_row = {k: v for k, v in row.items() if k in _schema_columns_set}
+
+        # Add missing columns efficiently using set difference
+        missing_cols = _schema_columns_set - filtered_row.keys()
+        if missing_cols:
+            filtered_row.update((col, None) for col in missing_cols)
+
+        return filtered_row
+
     @staticmethod
     def to_protobuf_serialization(TableRowClass: Type[Message], row: dict) -> bytes:
         """Convert a row to a Protobuf serialization."""
@@ -198,7 +213,9 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         if self.config.unnest:
             serialized_rows = [
-                self.to_protobuf_serialization(TableRowClass=TableRow, row=self.safe_cast_record_values(row))
+                self.to_protobuf_serialization(
+                    TableRowClass=TableRow, row=self.enforce_record_schema_columns(self.safe_cast_record_values(row))
+                )
                 for row in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list()
             ]
         else:
@@ -316,7 +333,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         if self.config.unnest:
             rows_to_insert = [
-                self.safe_cast_record_values(row)
+                self.enforce_record_schema_columns(self.safe_cast_record_values(row))
                 for row in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list()
             ]
         else:
@@ -350,6 +367,15 @@ class BigQueryStreamingDestination(AbstractDestination):
                 raise
 
         if errors:
+            logger.error("Encountered errors while inserting rows:")
+            for error in errors:
+                if error.get("errors") and len(error["errors"]) > 0:
+                    logger.error("The following row failed to be inserted:")
+                    logger.error(f"{batch['stream_batch'][error['index']]}")
+                    for error_detail in error["errors"]:
+                        logger.error(f"Location (column): {error_detail['location']}")
+                        logger.error(f"Reason: {error_detail['reason']}")
+                        logger.error(f"Message: {error_detail['message']}")
             raise Exception(f"Encountered errors while inserting rows: {errors}")
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:

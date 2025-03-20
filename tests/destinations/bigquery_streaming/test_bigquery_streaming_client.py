@@ -318,7 +318,12 @@ def test_error_on_added_column(my_backend_config, sync_metadata_stream):
     os.getenv("POETRY_ENV_TEST") == "CI",
     reason="Skipping tests that require a BigQuery database",
 )
-def test_propagate_added_column(my_backend_config, sync_metadata_stream):
+def test_enforce_record_schema_columns(my_backend_config, sync_metadata_stream):
+    """
+    Test that the record schema is enforced on the destination.
+    Any extra columns not in the record schema will be ignored.
+    Any columns in the record schema that are not present in the record will be set to NULL.
+    """
     bigquery_config = BigQueryStreamingConfig(
         name=DestinationTypes.BIGQUERY_STREAMING,
         config=BigQueryStreamingConfigDetails(
@@ -329,7 +334,7 @@ def test_propagate_added_column(my_backend_config, sync_metadata_stream):
             time_partitioning={"type": "DAY", "field": "created_at"},
             record_schemas=[
                 {
-                    "destination_id": f"{TEST_PROJECT_ID}.{TEST_DATASET_ID}.{TEST_TABLE_ID}_propagate",
+                    "destination_id": f"{TEST_PROJECT_ID}.{TEST_DATASET_ID}.{TEST_TABLE_ID}_enforce_schema",
                     "record_schema": [
                         {
                             "name": "id",
@@ -361,8 +366,8 @@ def test_propagate_added_column(my_backend_config, sync_metadata_stream):
 
     # Insert proper records
     records = [
-        {"id": 1, "name": "Alice", "created_at": "2021-01-01 00:00:00"},
-        {"id": 2, "name": "Bob", "created_at": "2021-01-01 00:00:00"},
+        {"id": 1, "name": "Alice", "created_at": "2021-01-01 00:00:00", "column_not_in_schema": "value"},
+        {"id": 2, "name": "Bob", "created_at": "2021-01-01 00:00:00", "column_not_in_schema": "value"},
     ]
     df_unnested_records = pl.DataFrame(
         {
@@ -439,6 +444,83 @@ def test_propagate_added_column(my_backend_config, sync_metadata_stream):
     )
 
     success, error_msg = bq_destination.write_records(df_destination_records=df_new)
+
+    assert success is True
+    assert error_msg == ""
+
+
+@pytest.mark.skipif(
+    os.getenv("POETRY_ENV_TEST") == "CI",
+    reason="Skipping tests that require a BigQuery database",
+)
+def test_assert_failed_row_error_message_is_correct(my_backend_config, sync_metadata_stream):
+    """
+    Test that a failing payload is logged correctly.
+    """
+    bigquery_config = BigQueryStreamingConfig(
+        name=DestinationTypes.BIGQUERY_STREAMING,
+        config=BigQueryStreamingConfigDetails(
+            project_id=TEST_PROJECT_ID,
+            dataset_id=TEST_DATASET_ID,
+            unnest=True,
+            use_legacy_streaming_api=True,
+            time_partitioning={"type": "DAY", "field": "created_at"},
+            record_schemas=[
+                {
+                    "destination_id": f"{TEST_PROJECT_ID}.{TEST_DATASET_ID}.{TEST_TABLE_ID}_failed_json",
+                    "record_schema": [
+                        {
+                            "name": "id",
+                            "type": "INTEGER",
+                            "mode": "REQUIRED",
+                        },
+                        {
+                            "name": "name",
+                            "type": "STRING",
+                            "mode": "REQUIRED",
+                        },
+                        {
+                            "name": "data",
+                            "type": "JSON",
+                            "mode": "REQUIRED",
+                        },
+                        {
+                            "name": "created_at",
+                            "type": "DATETIME",
+                            "mode": "REQUIRED",
+                        },
+                    ],
+                }
+            ],
+        ),
+    )
+
+    bq_destination = DestinationFactory().get_destination(
+        sync_metadata=sync_metadata_stream,
+        config=bigquery_config,
+        backend=my_backend_config,
+        source_callback=None,
+    )
+
+    # Insert proper records
+
+    df_unnested_records = pl.DataFrame(
+        {
+            "bizon_id": ["id_1"],
+            "bizon_extracted_at": [datetime(2024, 12, 5, 12, 0)],
+            "bizon_loaded_at": [datetime(2024, 12, 5, 12, 30)],
+            "source_record_id": ["record_1"],
+            "source_timestamp": [datetime(2024, 12, 5, 11, 30)],
+            "source_data": [
+                '{"id": 1, "name": "Bob", "data": {"_invalid_json": "missing quotes around key"}, "created_at": "2021-01-01 00:00:00"}'
+            ],
+        },
+        schema=destination_record_schema,
+    )
+
+    # Try to insert a new record with a new schema
+
+    success, error_msg = bq_destination.write_records(df_destination_records=df_unnested_records)
 
     assert success is True
     assert error_msg == ""
