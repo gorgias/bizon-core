@@ -164,6 +164,8 @@ class BigQueryStreamingDestination(AbstractDestination):
         # Add missing columns efficiently using set difference
         missing_cols = _schema_columns_set - filtered_row.keys()
         if missing_cols:
+            repeated_cols = {col.name: [] for col in self.record_schemas[self.destination_id] if col.mode == "REPEATED"}
+            filtered_row.update(repeated_cols)
             filtered_row.update((col, None) for col in missing_cols)
 
         return filtered_row
@@ -371,7 +373,10 @@ class BigQueryStreamingDestination(AbstractDestination):
             for error in errors:
                 if error.get("errors") and len(error["errors"]) > 0:
                     logger.error("The following row failed to be inserted:")
-                    logger.error(f"{batch['stream_batch'][error['index']]}")
+                    if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
+                        logger.error(f"{batch['stream_batch'][error['index']]}")
+                    else:
+                        logger.error(f"{batch['json_batch'][error['index']]}")
                     for error_detail in error["errors"]:
                         logger.error(f"Location (column): {error_detail['location']}")
                         logger.error(f"Reason: {error_detail['reason']}")
