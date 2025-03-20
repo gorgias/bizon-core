@@ -164,6 +164,8 @@ class BigQueryStreamingDestination(AbstractDestination):
         # Add missing columns efficiently using set difference
         missing_cols = _schema_columns_set - filtered_row.keys()
         if missing_cols:
+            repeated_cols = {col.name: [] for col in self.record_schemas[self.destination_id] if col.mode == "REPEATED"}
+            filtered_row.update(repeated_cols)
             filtered_row.update((col, None) for col in missing_cols)
 
         return filtered_row
