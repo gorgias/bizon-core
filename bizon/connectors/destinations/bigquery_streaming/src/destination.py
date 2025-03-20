@@ -371,7 +371,10 @@ class BigQueryStreamingDestination(AbstractDestination):
             for error in errors:
                 if error.get("errors") and len(error["errors"]) > 0:
                     logger.error("The following row failed to be inserted:")
-                    logger.error(f"{batch['stream_batch'][error['index']]}")
+                    if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
+                        logger.error(f"{batch['stream_batch'][error['index']]}")
+                    else:
+                        logger.error(f"{batch['json_batch'][error['index']]}")
                     for error_detail in error["errors"]:
                         logger.error(f"Location (column): {error_detail['location']}")
                         logger.error(f"Reason: {error_detail['reason']}")
