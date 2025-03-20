@@ -367,6 +367,15 @@ class BigQueryStreamingDestination(AbstractDestination):
                 raise
 
         if errors:
+            logger.error("Encountered errors while inserting rows:")
+            for error in errors:
+                if error.get("errors") and len(error["errors"]) > 0:
+                    logger.error("The following row failed to be inserted:")
+                    logger.error(f"{batch['stream_batch'][error['index']]}")
+                    for error_detail in error["errors"]:
+                        logger.error(f"Location (column): {error_detail['location']}")
+                        logger.error(f"Reason: {error_detail['reason']}")
+                        logger.error(f"Message: {error_detail['message']}")
             raise Exception(f"Encountered errors while inserting rows: {errors}")
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:
