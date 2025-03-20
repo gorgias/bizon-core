@@ -449,6 +449,10 @@ def test_enforce_record_schema_columns(my_backend_config, sync_metadata_stream):
     assert error_msg == ""
 
 
+@pytest.mark.skipif(
+    os.getenv("POETRY_ENV_TEST") == "CI",
+    reason="Skipping tests that require a BigQuery database",
+)
 def test_assert_failed_row_error_message_is_correct(my_backend_config, sync_metadata_stream):
     """
     Test that a failing payload is logged correctly.
