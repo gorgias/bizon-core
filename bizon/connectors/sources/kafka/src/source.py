@@ -271,7 +271,7 @@ class KafkaSource(AbstractSource):
                     "offset": message.offset(),
                     "partition": message.partition(),
                     "timestamp": message.timestamp()[1],
-                    "key": message.key().decode("utf-8"),
+                    "keys": json.loads(message.key().decode("utf-8")) if message.key() else {},
                     "headers": (
                         {key: value.decode("utf-8") for key, value in message.headers()} if message.headers() else {}
                     ),
