@@ -83,10 +83,11 @@ class BigQueryStreamingDestination(AbstractDestination):
 
             return [
                 bigquery.SchemaField(
-                    col.name,
-                    col.type,
+                    name=col.name,
+                    field_type=col.type,
                     mode=col.mode,
                     description=col.description,
+                    default_value_expression=col.default_value_expression,
                 )
                 for col in self.record_schemas[self.destination_id]
             ]
@@ -134,7 +135,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
     def safe_cast_record_values(self, row: dict):
         for col in self.record_schemas[self.destination_id]:
-            if col.type in ["TIMESTAMP", "DATETIME"]:
+            if col.type in ["TIMESTAMP", "DATETIME"] and col.default_value_expression is None:
                 if isinstance(row[col.name], int):
                     if row[col.name] > datetime(9999, 12, 31).timestamp():
                         row[col.name] = datetime.fromtimestamp(row[col.name] / 1_000_000).strftime(

@@ -75,6 +75,7 @@ class BigQueryColumn(DestinationColumn):
     type: BigQueryColumnType = Field(..., description="Type of the column")
     mode: BigQueryColumnMode = Field(..., description="Mode of the column")
     description: Optional[str] = Field(None, description="Description of the column")
+    default_value_expression: Optional[str] = Field(None, description="Default value expression")
 
     @property
     def polars_type(self):
