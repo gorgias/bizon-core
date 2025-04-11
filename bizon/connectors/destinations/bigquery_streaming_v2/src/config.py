@@ -32,7 +32,7 @@ class BigQueryAuthentication(BaseModel):
     )
 
 
-class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
+class BigQueryStreamingV2ConfigDetails(AbstractDestinationDetailsConfig):
     project_id: str
     dataset_id: str
     dataset_location: Optional[str] = "US"
@@ -45,12 +45,8 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
     record_schemas: Optional[list[BigQueryRecordSchemaConfig]] = Field(
         default=None, description="Schema for the records. Required if unnest is set to true."
     )
-    use_legacy_streaming_api: bool = Field(
-        default=False,
-        description="[DEPRECATED] Use the legacy streaming API. This is required for some older BigQuery versions.",
-    )
 
 
-class BigQueryStreamingConfig(AbstractDestinationConfig):
-    name: Literal[DestinationTypes.BIGQUERY_STREAMING]
-    config: BigQueryStreamingConfigDetails
+class BigQueryStreamingV2Config(AbstractDestinationConfig):
+    name: Literal[DestinationTypes.BIGQUERY_STREAMING_V2]
+    config: BigQueryStreamingV2ConfigDetails

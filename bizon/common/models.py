@@ -7,6 +7,9 @@ from bizon.connectors.destinations.bigquery.src.config import BigQueryConfig
 from bizon.connectors.destinations.bigquery_streaming.src.config import (
     BigQueryStreamingConfig,
 )
+from bizon.connectors.destinations.bigquery_streaming_v2.src.config import (
+    BigQueryStreamingV2Config,
+)
 from bizon.connectors.destinations.file.src.config import FileDestinationConfig
 from bizon.connectors.destinations.logger.src.config import LoggerConfig
 from bizon.engine.config import EngineConfig
@@ -36,6 +39,7 @@ class BizonConfig(BaseModel):
     destination: Union[
         BigQueryConfig,
         BigQueryStreamingConfig,
+        BigQueryStreamingV2Config,
         LoggerConfig,
         FileDestinationConfig,
     ] = Field(
