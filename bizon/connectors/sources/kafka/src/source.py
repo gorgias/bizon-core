@@ -53,6 +53,11 @@ class TopicOffsets(BaseModel):
         return sum([partition.last for partition in self.partitions.values()])
 
 
+class Hashabledict(dict):
+    def __hash__(self):
+        return hash(frozenset(self))
+
+
 class KafkaSource(AbstractSource):
 
     def __init__(self, config: KafkaSourceConfig):
@@ -175,10 +180,39 @@ class KafkaSource(AbstractSource):
         schema["name"] = "Envelope"
         return parse(json.dumps(schema))
 
+    @lru_cache(maxsize=None)
+    def find_debezium_json_fields(self, hashable_schema: Hashabledict) -> list[str]:
+        """Find the JSON fields in the Debezium schema"""
+
+        json_fields = []
+
+        for field in hashable_schema["fields"]:
+            if field["name"] == "before":
+                for before_types in field["type"]:
+                    if isinstance(before_types, dict) and before_types["type"] == "record":
+                        debezium_columns = before_types["fields"]
+                        for column in debezium_columns:
+                            if (
+                                isinstance(column.get("type"), dict)
+                                and column.get("type").get("connect.name") == "io.debezium.data.Json"
+                            ):
+                                json_fields.append(column["name"])
+        return json_fields
+
+    def parse_debezium_json_fields(self, data: dict, hashable_schema: Hashabledict) -> None:
+        """Parse the JSON fields from the Debezium payload data in-place"""
+
+        json_fields = self.find_debezium_json_fields(hashable_schema)
+
+        for field in json_fields:
+            for root_column in ["before", "after"]:
+                if data.get(root_column) and data.get(root_column).get(field) is not None:
+                    data[root_column][field] = json.loads(data[root_column][field])
+
     def decode_avro(self, message):
         try:
             header_message_bytes = self.get_header_bytes(message.value())
-            schema = self.get_message_schema(header_message_bytes)
+            schema, hashable_schema = self.get_message_schema(header_message_bytes)
 
         except ApicurioSchemaNotFound as e:
             message_schema_id = self.parse_global_id_from_serialized_message(header_message_bytes)
@@ -197,7 +231,11 @@ class KafkaSource(AbstractSource):
 
         message_bytes = io.BytesIO(message.value())
         message_bytes.seek(self.config.nb_bytes_schema_id + 1)
-        return fastavro.schemaless_reader(message_bytes, schema)
+        data = fastavro.schemaless_reader(message_bytes, schema)
+
+        self.parse_debezium_json_fields(data=data, hashable_schema=hashable_schema)
+
+        return data
 
     def decode_utf_8(self, message):
         # Decode the message as utf-8
@@ -214,10 +252,12 @@ class KafkaSource(AbstractSource):
             raise ValueError(f"Message encoding {self.config.message_encoding} not supported")
 
     @lru_cache(maxsize=None)
-    def get_message_schema(self, header_message: bytes) -> dict:
-        """Get the global id of the schema for the topic"""
+    def get_message_schema(self, header_message: bytes) -> Tuple[dict, Hashabledict]:
+        """Get the Avro schema based on the kafka message header"""
         global_id = self.parse_global_id_from_serialized_message(header_message)
-        return self.get_parsed_avro_schema(global_id).to_json()
+        schema_dict = self.get_parsed_avro_schema(global_id).to_json()
+        hashable_schema = Hashabledict(schema_dict)
+        return schema_dict, hashable_schema
 
     def get_header_bytes(self, message: bytes) -> bytes:
         if self.config.nb_bytes_schema_id == 8:
@@ -244,8 +284,6 @@ class KafkaSource(AbstractSource):
                             f"Raised MSG_SIZE_TOO_LARGE, we suppose the message does not exist. Double-check in Confluent Cloud."
                         )
                     )
-                    # We skip the message
-                    # self.topic_offsets.set_partition_offset(message.partition(), message.offset() + 1)
                     continue
 
                 logger.error(
