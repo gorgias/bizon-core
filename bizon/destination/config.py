@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class DestinationTypes(str, Enum):
     BIGQUERY = "bigquery"
     BIGQUERY_STREAMING = "bigquery_streaming"
+    BIGQUERY_STREAMING_V2 = "bigquery_streaming_v2"
     LOGGER = "logger"
     FILE = "file"
 

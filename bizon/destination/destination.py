@@ -305,6 +305,15 @@ class DestinationFactory:
                 sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
             )
 
+        elif config.name == DestinationTypes.BIGQUERY_STREAMING_V2:
+            from bizon.connectors.destinations.bigquery_streaming_v2.src.destination import (
+                BigQueryStreamingV2Destination,
+            )
+
+            return BigQueryStreamingV2Destination(
+                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+            )
+
         elif config.name == DestinationTypes.FILE:
             from bizon.connectors.destinations.file.src.destination import (
                 FileDestination,
