@@ -1,0 +1,239 @@
+{
+    "type": "record",
+    "connect.version": 1,
+    "connect.name": "us_central1.public.analytics_custom_report.Envelope",
+    "name": "Envelope",
+    "namespace": "us_central1.public.analytics_custom_report",
+    "fields": [
+        {
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "connect.name": "us_central1.public.analytics_custom_report.Value",
+                    "name": "Value",
+                    "namespace": "us_central1.public.analytics_custom_report",
+                    "fields": [
+                        {
+                            "type": {
+                                "type": "int",
+                                "connect.default": 0
+                            },
+                            "name": "id",
+                            "default": 0
+                        },
+                        {
+                            "type": "int",
+                            "name": "account_id"
+                        },
+                        {
+                            "type": "string",
+                            "name": "name"
+                        },
+                        {
+                            "type": "string",
+                            "name": "type"
+                        },
+                        {
+                            "type": [
+                                "null",
+                                "string"
+                            ],
+                            "name": "emoji",
+                            "default": null
+                        },
+                        {
+                            "type": [
+                                "null",
+                                "int"
+                            ],
+                            "name": "analytics_filter_id",
+                            "default": null
+                        },
+                        {
+                            "type": {
+                                "type": "string",
+                                "connect.version": 1,
+                                "connect.name": "io.debezium.data.Json"
+                            },
+                            "name": "children"
+                        },
+                        {
+                            "type": "int",
+                            "name": "created_by"
+                        },
+                        {
+                            "type": {
+                                "type": "long",
+                                "connect.version": 1,
+                                "connect.name": "io.debezium.time.MicroTimestamp"
+                            },
+                            "name": "created_datetime"
+                        },
+                        {
+                            "type": "int",
+                            "name": "updated_by"
+                        },
+                        {
+                            "type": {
+                                "type": "long",
+                                "connect.version": 1,
+                                "connect.name": "io.debezium.time.MicroTimestamp"
+                            },
+                            "name": "updated_datetime"
+                        },
+                        {
+                            "type": [
+                                "null",
+                                {
+                                    "type": "long",
+                                    "connect.version": 1,
+                                    "connect.name": "io.debezium.time.MicroTimestamp"
+                                }
+                            ],
+                            "name": "deleted_datetime",
+                            "default": null
+                        }
+                    ]
+                }
+            ],
+            "name": "before",
+            "default": null
+        },
+        {
+            "type": [
+                "null",
+                "us_central1.public.analytics_custom_report.Value"
+            ],
+            "name": "after",
+            "default": null
+        },
+        {
+            "type": {
+                "type": "record",
+                "connect.name": "io.debezium.connector.postgresql.Source",
+                "name": "Source",
+                "namespace": "io.debezium.connector.postgresql",
+                "fields": [
+                    {
+                        "type": "string",
+                        "name": "version"
+                    },
+                    {
+                        "type": "string",
+                        "name": "connector"
+                    },
+                    {
+                        "type": "string",
+                        "name": "name"
+                    },
+                    {
+                        "type": "long",
+                        "name": "ts_ms"
+                    },
+                    {
+                        "type": [
+                            {
+                                "type": "string",
+                                "connect.version": 1,
+                                "connect.parameters": {
+                                    "allowed": "true,last,false,incremental"
+                                },
+                                "connect.default": "false",
+                                "connect.name": "io.debezium.data.Enum"
+                            },
+                            "null"
+                        ],
+                        "name": "snapshot",
+                        "default": "false"
+                    },
+                    {
+                        "type": "string",
+                        "name": "db"
+                    },
+                    {
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "name": "sequence",
+                        "default": null
+                    },
+                    {
+                        "type": "string",
+                        "name": "schema"
+                    },
+                    {
+                        "type": "string",
+                        "name": "table"
+                    },
+                    {
+                        "type": [
+                            "null",
+                            "long"
+                        ],
+                        "name": "txId",
+                        "default": null
+                    },
+                    {
+                        "type": [
+                            "null",
+                            "long"
+                        ],
+                        "name": "lsn",
+                        "default": null
+                    },
+                    {
+                        "type": [
+                            "null",
+                            "long"
+                        ],
+                        "name": "xmin",
+                        "default": null
+                    }
+                ]
+            },
+            "name": "source"
+        },
+        {
+            "type": "string",
+            "name": "op"
+        },
+        {
+            "type": [
+                "null",
+                "long"
+            ],
+            "name": "ts_ms",
+            "default": null
+        },
+        {
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "connect.version": 1,
+                    "connect.name": "event.block",
+                    "name": "block",
+                    "namespace": "event",
+                    "fields": [
+                        {
+                            "type": "string",
+                            "name": "id"
+                        },
+                        {
+                            "type": "long",
+                            "name": "total_order"
+                        },
+                        {
+                            "type": "long",
+                            "name": "data_collection_order"
+                        }
+                    ]
+                }
+            ],
+            "name": "transaction",
+            "default": null
+        }
+    ]
+}

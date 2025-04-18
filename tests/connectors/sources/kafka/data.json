@@ -1,0 +1,34 @@
+{
+    "before": null,
+    "after": {
+        "id": 2,
+        "account_id": 105581,
+        "name": "Chats Statistics",
+        "type": "custom",
+        "emoji": "",
+        "analytics_filter_id": null,
+        "children": "[{\"type\": \"row\", \"children\": [{\"type\": \"chart\", \"metadata\": {}, \"config_id\": \"agents_top_closed_tickets_performers\"}], \"metadata\": {}}]",
+        "created_by": 304979897,
+        "created_datetime": 1738974102485299,
+        "updated_by": 304979897,
+        "updated_datetime": 1738974130634117,
+        "deleted_datetime": 1738974130634079
+    },
+    "source": {
+        "version": "2.5.1.Final",
+        "connector": "postgresql",
+        "name": "us_central1_c433",
+        "ts_ms": 1741904478906,
+        "snapshot": "incremental",
+        "db": "my_database",
+        "sequence": "[\"582362934249552\",\"582362934262240\"]",
+        "schema": "public",
+        "table": "analytics_custom_report",
+        "txId": null,
+        "lsn": null,
+        "xmin": null
+    },
+    "op": "r",
+    "ts_ms": 1741904478906,
+    "transaction": null
+}
