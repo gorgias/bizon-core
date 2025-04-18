@@ -1,19 +1,20 @@
-import io
-import json
-import logging
-import struct
+import orjson
 import traceback
 from datetime import datetime
 from functools import lru_cache
 from typing import Any, List, Mapping, Tuple
 
-import fastavro
 from avro.schema import Schema, parse
-from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
+from confluent_kafka import (
+    Consumer,
+    KafkaError,
+    KafkaException,
+    Message,
+    TopicPartition,
+)
 from loguru import logger
 from pydantic import BaseModel
 from pytz import UTC
-from requests.exceptions import HTTPError
 
 from bizon.source.auth.config import AuthType
 from bizon.source.callback import AbstractSourceCallback
@@ -23,12 +24,15 @@ from bizon.source.source import AbstractSource
 
 from .callback import KafkaSourceCallback
 from .config import KafkaSourceConfig, MessageEncoding, SchemaRegistryType
+from .decode import (
+    Hashabledict,
+    decode_avro_message,
+    get_header_bytes,
+    parse_global_id_from_serialized_message,
+)
 
-silent_logger = logging.getLogger()
-silent_logger.addHandler(logging.StreamHandler())
 
-
-class ApicurioSchemaNotFound(Exception):
+class SchemaNotFound(Exception):
     pass
 
 
@@ -53,11 +57,6 @@ class TopicOffsets(BaseModel):
         return sum([partition.last for partition in self.partitions.values()])
 
 
-class Hashabledict(dict):
-    def __hash__(self):
-        return hash(frozenset(self))
-
-
 class KafkaSource(AbstractSource):
 
     def __init__(self, config: KafkaSourceConfig):
@@ -76,7 +75,7 @@ class KafkaSource(AbstractSource):
         self.config.consumer_config["bootstrap.servers"] = self.config.bootstrap_servers
 
         # Consumer instance
-        self.consumer = Consumer(self.config.consumer_config, logger=silent_logger)
+        self.consumer = Consumer(self.config.consumer_config, logger=logger)
 
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
 
@@ -138,22 +137,12 @@ class KafkaSource(AbstractSource):
             total_records += self.get_offset_partitions(topic).total_offset
         return total_records
 
-    def parse_global_id_from_serialized_message(self, header_message: bytes) -> int:
-        """Parse the global id from the serialized message"""
+    @lru_cache(maxsize=None)
+    def get_schema_from_registry(self, global_id: int) -> Tuple[Hashabledict, Schema]:
+        """Get the schema from the registry, return a hashable dict and an avro schema object"""
 
-        if self.config.nb_bytes_schema_id == 8:
-            return struct.unpack(">bq", header_message)[1]
-
-        if self.config.nb_bytes_schema_id == 4:
-            return struct.unpack(">I", header_message)[0]
-
-        raise ValueError(f"Number of bytes for schema id {self.config.nb_bytes_schema_id} not supported")
-
-    def get_apicurio_schema(self, global_id: int) -> dict:
-        """Get the schema from the Apicurio schema registry"""
-
+        # Apicurio
         if self.config.authentication.schema_registry_type == SchemaRegistryType.APICURIO:
-
             try:
                 response = self.session.get(
                     f"{self.config.authentication.schema_registry_url}/apis/registry/v2/ids/globalIds/{global_id}",
@@ -162,84 +151,59 @@ class KafkaSource(AbstractSource):
                         self.config.authentication.schema_registry_password,
                     ),
                 )
+                if response.status_code == 404:
+                    raise SchemaNotFound(f"Schema with global id {global_id} not found")
 
-            except HTTPError as e:
-                if e.response.status_code == 404:
-                    raise ApicurioSchemaNotFound(f"Schema with global id {global_id} not found")
+                schema_dict = response.json()
 
-            return response.json()
+            except Exception as e:
+                logger.error(traceback.format_exc())
+                raise e
+
+            # Add a name field to the schema as needed by fastavro
+            schema_dict["name"] = "Envelope"
+
+            # Convert the schema dict to an avro schema object
+            avro_schema = parse(orjson.dumps(schema_dict))
+
+            # Convert the schema dict to a hashable dict
+            hashable_dict_schema = Hashabledict(schema_dict)
+
+            return hashable_dict_schema, avro_schema
 
         else:
-            raise NotImplementedError(
-                f"Schema registry of type {self.config.authentication.schema_registry_type} not supported"
-            )
+            raise ValueError(f"Schema registry type {self.config.authentication.schema_registry_type} not supported")
 
-    def get_parsed_avro_schema(self, global_id: int) -> Schema:
-        """Parse the schema from the Apicurio schema registry"""
-        schema = self.get_apicurio_schema(global_id)
-        schema["name"] = "Envelope"
-        return parse(json.dumps(schema))
+    def decode_avro(self, message: Message) -> dict:
+        # Get the header bytes and the global id from the message
+        header_message_bytes = get_header_bytes(message.value())
+        global_id = parse_global_id_from_serialized_message(
+            nb_bytes_schema_id=self.config.nb_bytes_schema_id,
+            header_message_bytes=header_message_bytes,
+        )
 
-    @lru_cache(maxsize=None)
-    def find_debezium_json_fields(self, hashable_schema: Hashabledict) -> list[str]:
-        """Find the JSON fields in the Debezium schema"""
-
-        json_fields = []
-
-        for field in hashable_schema["fields"]:
-            if field["name"] == "before":
-                for before_types in field["type"]:
-                    if isinstance(before_types, dict) and before_types["type"] == "record":
-                        debezium_columns = before_types["fields"]
-                        for column in debezium_columns:
-                            if (
-                                isinstance(column.get("type"), dict)
-                                and column.get("type").get("connect.name") == "io.debezium.data.Json"
-                            ):
-                                json_fields.append(column["name"])
-        return json_fields
-
-    def parse_debezium_json_fields(self, data: dict, hashable_schema: Hashabledict) -> None:
-        """Parse the JSON fields from the Debezium payload data in-place"""
-
-        json_fields = self.find_debezium_json_fields(hashable_schema)
-
-        for field in json_fields:
-            for root_column in ["before", "after"]:
-                if data.get(root_column) and data.get(root_column).get(field) is not None:
-                    data[root_column][field] = json.loads(data[root_column][field])
-
-    def decode_avro(self, message):
         try:
-            header_message_bytes = self.get_header_bytes(message.value())
-            schema, hashable_schema = self.get_message_schema(header_message_bytes)
-
-        except ApicurioSchemaNotFound as e:
-            message_schema_id = self.parse_global_id_from_serialized_message(header_message_bytes)
+            hashable_dict_schema, avro_schema = self.get_schema_from_registry(global_id=global_id)
+        except SchemaNotFound as e:
             logger.error(
                 (
-                    f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {message_schema_id} which is not found in Registry."
+                    f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {global_id} which is not found in Registry."
                     f"message value: {message.value()}."
                 )
             )
             logger.error(traceback.format_exc())
             raise e
 
-        except Exception as e:
-            logger.error(traceback.format_exc())
-            raise e
+        return decode_avro_message(
+            message=message,
+            nb_bytes_schema_id=self.config.nb_bytes_schema_id,
+            hashable_dict_schema=hashable_dict_schema,
+            avro_schema=avro_schema,
+        )
 
-        message_bytes = io.BytesIO(message.value())
-        message_bytes.seek(self.config.nb_bytes_schema_id + 1)
-        data = fastavro.schemaless_reader(message_bytes, schema)
-
-        self.parse_debezium_json_fields(data=data, hashable_schema=hashable_schema)
-
-        return data
-
-    def decode_utf_8(self, message):
+    def decode_utf_8(self, message: Message):
         # Decode the message as utf-8
-        return json.loads(message.value().decode("utf-8"))
+        return orjson.loads(message.value().decode("utf-8"))
 
     def decode(self, message):
         if self.config.message_encoding == MessageEncoding.AVRO:
@@ -250,24 +214,6 @@ class KafkaSource(AbstractSource):
 
         else:
             raise ValueError(f"Message encoding {self.config.message_encoding} not supported")
-
-    @lru_cache(maxsize=None)
-    def get_message_schema(self, header_message: bytes) -> Tuple[dict, Hashabledict]:
-        """Get the Avro schema based on the kafka message header"""
-        global_id = self.parse_global_id_from_serialized_message(header_message)
-        schema_dict = self.get_parsed_avro_schema(global_id).to_json()
-        hashable_schema = Hashabledict(schema_dict)
-        return schema_dict, hashable_schema
-
-    def get_header_bytes(self, message: bytes) -> bytes:
-        if self.config.nb_bytes_schema_id == 8:
-            return message[:9]
-
-        elif self.config.nb_bytes_schema_id == 4:
-            return message[1:5]
-
-        else:
-            raise ValueError(f"Number of bytes for schema id {self.config.nb_bytes_schema_id} not supported")
 
     def parse_encoded_messages(self, encoded_messages: list) -> List[SourceRecord]:
 
@@ -309,7 +255,7 @@ class KafkaSource(AbstractSource):
                     "offset": message.offset(),
                     "partition": message.partition(),
                     "timestamp": message.timestamp()[1],
-                    "keys": json.loads(message.key().decode("utf-8")) if message.key() else {},
+                    "keys": orjson.loads(message.key().decode("utf-8")) if message.key() else {},
                     "headers": (
                         {key: value.decode("utf-8") for key, value in message.headers()} if message.headers() else {}
                     ),
