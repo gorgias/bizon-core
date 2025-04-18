@@ -1,9 +1,9 @@
-import orjson
 import traceback
 from datetime import datetime
 from functools import lru_cache
 from typing import Any, List, Mapping, Tuple
 
+import orjson
 from avro.schema import Schema, parse
 from confluent_kafka import (
     Consumer,
@@ -176,7 +176,9 @@ class KafkaSource(AbstractSource):
 
     def decode_avro(self, message: Message) -> dict:
         # Get the header bytes and the global id from the message
-        header_message_bytes = get_header_bytes(nb_bytes_schema_id=self.config.nb_bytes_schema_id, message=message.value())
+        header_message_bytes = get_header_bytes(
+            nb_bytes_schema_id=self.config.nb_bytes_schema_id, message=message.value()
+        )
         global_id = parse_global_id_from_serialized_message(
             nb_bytes_schema_id=self.config.nb_bytes_schema_id,
             header_message_bytes=header_message_bytes,

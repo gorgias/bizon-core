@@ -1,9 +1,9 @@
 import io
-import orjson
 import struct
 from functools import lru_cache
 
 import fastavro
+import orjson
 from avro.schema import Schema
 
 
@@ -23,6 +23,7 @@ def get_header_bytes(nb_bytes_schema_id: int, message: bytes) -> bytes:
 
     else:
         raise ValueError(f"Number of bytes for schema id {nb_bytes_schema_id} not supported")
+
 
 @lru_cache(maxsize=None)
 def parse_global_id_from_serialized_message(nb_bytes_schema_id: int, header_message_bytes: bytes) -> int:
@@ -68,7 +69,9 @@ def parse_debezium_json_fields(data: dict, hashable_schema: Hashabledict) -> Non
                 data[root_column][field] = orjson.loads(data[root_column][field])
 
 
-def decode_avro_message(message: bytes, nb_bytes_schema_id: int, hashable_dict_schema: Hashabledict, avro_schema: Schema) -> dict:
+def decode_avro_message(
+    message: bytes, nb_bytes_schema_id: int, hashable_dict_schema: Hashabledict, avro_schema: Schema
+) -> dict:
     """Decode an Avro message"""
 
     # Decode the message
