@@ -20,7 +20,7 @@
         "name": "us_central1_c433",
         "ts_ms": 1741904478906,
         "snapshot": "incremental",
-        "db": "gorgias",
+        "db": "my_database",
         "sequence": "[\"582362934249552\",\"582362934262240\"]",
         "schema": "public",
         "table": "analytics_custom_report",
