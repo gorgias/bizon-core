@@ -139,7 +139,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         for col in self.record_schemas[self.destination_id]:
 
             # Handle dicts as strings
-            if col.type == "STRING":
+            if col.type in ["STRING", "JSON"]:
                 if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
                     row[col.name] = orjson.dumps(row[col.name]).decode("utf-8")
 
