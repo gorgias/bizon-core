@@ -66,7 +66,7 @@ def parse_debezium_json_fields(data: dict, hashable_schema: Hashabledict) -> Non
     for field in json_fields:
         for root_column in ["before", "after"]:
             if data.get(root_column) and data.get(root_column).get(field) is not None:
-                data[root_column][field] = orjson.loads(data[root_column][field])
+                data[root_column][field] = orjson.loads(data[root_column][field]) if len(data[root_column][field]) > 0 else None
 
 
 def decode_avro_message(
