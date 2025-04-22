@@ -20,8 +20,6 @@ from google.cloud.bigquery_storage_v1.types import (
     ProtoRows,
     ProtoSchema,
 )
-from google.protobuf.json_format import ParseDict
-from google.protobuf.message import Message
 from loguru import logger
 from requests.exceptions import ConnectionError, SSLError, Timeout
 from tenacity import (
@@ -32,6 +30,10 @@ from tenacity import (
 )
 
 from bizon.common.models import SyncMetadata
+from bizon.connectors.destinations.bigquery.src.config import (
+    BigQueryColumnMode,
+    BigQueryColumnType,
+)
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.source.callback import AbstractSourceCallback
@@ -94,14 +96,43 @@ class BigQueryStreamingDestination(AbstractDestination):
         # Case we don't unnest the data
         else:
             return [
-                bigquery.SchemaField("_source_record_id", "STRING", mode="REQUIRED"),
-                bigquery.SchemaField("_source_timestamp", "TIMESTAMP", mode="REQUIRED"),
-                bigquery.SchemaField("_source_data", "JSON", mode="NULLABLE"),
-                bigquery.SchemaField("_bizon_extracted_at", "TIMESTAMP", mode="REQUIRED"),
                 bigquery.SchemaField(
-                    "_bizon_loaded_at", "TIMESTAMP", mode="REQUIRED", default_value_expression="CURRENT_TIMESTAMP()"
+                    "_source_record_id",
+                    BigQueryColumnType.STRING,
+                    mode=BigQueryColumnMode.REQUIRED,
+                    description="The source record id",
                 ),
-                bigquery.SchemaField("_bizon_id", "STRING", mode="REQUIRED"),
+                bigquery.SchemaField(
+                    "_source_timestamp",
+                    BigQueryColumnType.TIMESTAMP,
+                    mode=BigQueryColumnMode.REQUIRED,
+                    description="The source timestamp",
+                ),
+                bigquery.SchemaField(
+                    "_source_data",
+                    BigQueryColumnType.JSON,
+                    mode=BigQueryColumnMode.NULLABLE,
+                    description="The source data",
+                ),
+                bigquery.SchemaField(
+                    "_bizon_extracted_at",
+                    BigQueryColumnType.TIMESTAMP,
+                    mode=BigQueryColumnMode.REQUIRED,
+                    description="The bizon extracted at",
+                ),
+                bigquery.SchemaField(
+                    "_bizon_loaded_at",
+                    BigQueryColumnType.TIMESTAMP,
+                    mode=BigQueryColumnMode.REQUIRED,
+                    default_value_expression="CURRENT_TIMESTAMP()",
+                    description="The bizon loaded at",
+                ),
+                bigquery.SchemaField(
+                    "_bizon_id",
+                    BigQueryColumnType.STRING,
+                    mode=BigQueryColumnMode.REQUIRED,
+                    description="The bizon id",
+                ),
             ]
 
     def check_connection(self) -> bool:
@@ -139,12 +170,15 @@ class BigQueryStreamingDestination(AbstractDestination):
         for col in self.record_schemas[self.destination_id]:
 
             # Handle dicts as strings
-            if col.type in ["STRING", "JSON"]:
+            if col.type in [BigQueryColumnType.STRING, BigQueryColumnType.JSON]:
                 if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
                     row[col.name] = orjson.dumps(row[col.name]).decode("utf-8")
 
             # Handle timestamps
-            if col.type in ["TIMESTAMP", "DATETIME"] and col.default_value_expression is None:
+            if (
+                col.type in [BigQueryColumnType.TIMESTAMP, BigQueryColumnType.DATETIME]
+                and col.default_value_expression is None
+            ):
                 if isinstance(row[col.name], int):
                     if row[col.name] > datetime(9999, 12, 31).timestamp():
                         row[col.name] = datetime.fromtimestamp(row[col.name] / 1_000_000).strftime(
