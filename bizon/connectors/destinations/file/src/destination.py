@@ -1,6 +1,6 @@
-import json
 from typing import Tuple
 
+import orjson
 import polars as pl
 
 from bizon.common.models import SyncMetadata
@@ -37,7 +37,7 @@ class FileDestination(AbstractDestination):
 
             with open(f"{self.destination_id}.json", "a") as f:
 
-                for value in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list():
+                for value in [orjson.loads(data) for data in df_destination_records["source_data"].to_list()]:
 
                     assert set(value.keys()) == schema_keys, "Keys do not match the schema"
 
@@ -46,7 +46,7 @@ class FileDestination(AbstractDestination):
                     for column in self.record_schemas[self.destination_id]:
                         row[column.name] = value[column.name]
 
-                    f.write(f"{json.dumps(row)}\n")
+                    f.write(f"{orjson.dumps(row).decode('utf-8')}\n")
 
         else:
             df_destination_records.write_ndjson(f"{self.destination_id}.json")

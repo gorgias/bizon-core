@@ -278,9 +278,10 @@ class BigQueryStreamingDestination(AbstractDestination):
                 table = self.bq_client.update_table(table, ["schema"])
 
         if self.config.unnest:
+            # We cannot use the `json_decode` method here because of the issue: https://github.com/pola-rs/polars/issues/22371
             rows_to_insert = [
-                self.safe_cast_record_values(row)
-                for row in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list()
+                self.safe_cast_record_values(orjson.loads(row))
+                for row in df_destination_records["source_data"].to_list()
             ]
         else:
             df_destination_records = df_destination_records.with_columns(
