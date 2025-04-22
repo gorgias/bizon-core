@@ -3,6 +3,7 @@ import tempfile
 from datetime import datetime
 from typing import List, Tuple
 
+import orjson
 import polars as pl
 import urllib3.exceptions
 from google.api_core.exceptions import (
@@ -132,7 +133,16 @@ class BigQueryStreamingDestination(AbstractDestination):
         return response.code().name
 
     def safe_cast_record_values(self, row: dict):
+        """
+        Safe cast record values to the correct type for BigQuery.
+        """
         for col in self.record_schemas[self.destination_id]:
+
+            # Handle dicts as strings
+            if col.type == "STRING" and isinstance(row[col.name], dict):
+                row[col.name] = orjson.dumps(row[col.name]).decode("utf-8")
+
+            # Handle timestamps
             if col.type in ["TIMESTAMP", "DATETIME"] and col.default_value_expression is None:
                 if isinstance(row[col.name], int):
                     if row[col.name] > datetime(9999, 12, 31).timestamp():
