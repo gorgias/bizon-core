@@ -132,6 +132,24 @@ def test_parse_debezium_json_fields(test_data):
     assert isinstance(data_copy["after"]["children"], list)
 
 
+def test_parse_debezium_json_fields_with_emtpy_string(test_data):
+    """Test parsing JSON fields from Debezium data with a null value"""
+    # Create a copy of data to test modification in-place
+    data_copy = test_data["data"].copy()
+
+    # Set the "children" field to an empty string
+    data_copy["after"]["children"] = ""
+
+    # Before parsing, the "children" field should be a string
+    assert isinstance(data_copy["after"]["children"], str)
+
+    # Parse the JSON fields
+    parse_debezium_json_fields(data_copy, test_data["hashable_schema"])
+
+    # After parsing, the "children" field should be parsed as None
+    assert data_copy["after"]["children"] == None
+
+
 @patch("bizon.connectors.sources.kafka.src.decode.fastavro.schemaless_reader")
 @patch("bizon.connectors.sources.kafka.src.decode.parse_debezium_json_fields")
 def test_decode_avro_message(mock_parse_json, mock_reader, test_data):
