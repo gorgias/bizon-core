@@ -1,13 +1,13 @@
+from typing import Any, List, Tuple
 
-from typing import Any, List, Optional, Tuple, Union
-from requests.auth import AuthBase
 from pydantic import Field
-from bizon.source.config import SourceConfig
-from bizon.source.models import SourceIteration
-from bizon.source.source import AbstractSource
+from requests.auth import AuthBase
+
 from bizon.source.auth.builder import AuthBuilder
 from bizon.source.auth.config import AuthType
-from bizon.source.models import SourceRecord
+from bizon.source.config import SourceConfig
+from bizon.source.models import SourceIteration, SourceRecord
+from bizon.source.source import AbstractSource
 
 
 class CycleSourceConfig(SourceConfig):
@@ -23,11 +23,10 @@ class CycleSource(AbstractSource):
     def get_authenticator(self) -> AuthBase:
         if self.config.authentication.type.value == AuthType.API_KEY:
             return AuthBuilder.token(params=self.config.authentication.params)
-    
+
     @staticmethod
     def streams() -> List[str]:
         return ["customers"]
-
 
     @staticmethod
     def get_config_class() -> SourceConfig:
@@ -38,80 +37,79 @@ class CycleSource(AbstractSource):
 
     def get_total_records_count(self) -> int | None:
         return None
-    
 
     def run_graphql_query(self, query: str, variables: dict) -> dict:
-        """ Run a graphql query and return the response """
+        """Run a graphql query and return the response"""
 
-        payload = {
-            "query": query,
-            "variables": variables
-        }
+        payload = {"query": query, "variables": variables}
 
-        response = self.session.post(
-            self.url_graphql,
-            json=payload
-        )
-        
+        response = self.session.post(self.url_graphql, json=payload)
+
         data = response.json()
         return data
-    
-    def get_customers(self, pagination: dict) -> SourceIteration:
-        """ Return all customers for the given slug """
 
-        if not pagination :
+    def _get_pagination_str(self, pagination: dict) -> str:
+        if not pagination:
             pagination_str = """
-                size: 5
-            """ 
+            size: 100
+            """
         else:
             pagination_str = """
-                size: 5
-                where: {
-                    cursor: "{pagination}"
-                    direction: AFTER
-                }
-            """.format(pagination=pagination.get('endCursor'))
+            size: 100
+            where: {
+                cursor: "PAGINATION_CURSOR"
+                direction: AFTER
+            }
+            """.replace(
+                "PAGINATION_CURSOR", pagination.get("endCursor")
+            )
+
+        return pagination_str
+
+    def get_customers(self, pagination: dict) -> SourceIteration:
+        """Return all customers for the given slug"""
+
+        pagination_str = self._get_pagination_str(pagination=pagination)
 
         query = """
-            query Customers($slug: DefaultString!) {
+        query Customers($slug: DefaultString!) {
             getProductBySlug(slug: $slug) {
                 customers(pagination: {
-                {pagination_str}
+                    PAGINATION_STRING
                 }) {
-                edges {
-                    cursor
-                    node {
-                    id
-                    email
-                    name
-                    company {
-                        domain
-                        id
-                        name
+                    edges {
+                        cursor
+                        node {
+                            id
+                            email
+                            name
+                            company {
+                                domain
+                                id
+                                name
+                            }
+                        }
                     }
+                    pageInfo {
+                        hasPreviousPage
+                        hasNextPage
+                        startCursor
+                        endCursor
                     }
-                }
-                pageInfo {
-                    hasPreviousPage
-                    hasNextPage
-                    startCursor
-                    endCursor
-                }
                 }
             }
-            """.format(pagination_str=pagination_str)
-
-        variables = {
-            "slug": self.config.slug
         }
+        """.replace(
+            "PAGINATION_STRING", pagination_str
+        )
+
+        variables = {"slug": self.config.slug}
 
         data = self.run_graphql_query(query, variables)
 
-        # TODO - set the next pagination from the pageInfo result from the response
-        next_pagination = data.get("data", {}).get("getProductBySlug", {}).get("customers", {}).get("pageInfo", {})
-
+        # Parse edges from response
         edges = data.get("data", {}).get("getProductBySlug", {}).get("customers", {}).get("edges", [])
-        
+
         records = []
         for customer in edges:
             customer_data = customer.get("node", {})
@@ -121,10 +119,13 @@ class CycleSource(AbstractSource):
                     data=customer_data,
                 )
             )
-        
+
+        # Get pagination info from response
+        pagination_info = data.get("data", {}).get("getProductBySlug", {}).get("customers", {}).get("pageInfo", {})
+        next_pagination = pagination_info if pagination_info.get("hasNextPage") else {}
+
         return SourceIteration(records=records, next_pagination=next_pagination)
 
-    
     def get(self, pagination: dict = None) -> SourceIteration:
         if self.config.stream == "customers":
             return self.get_customers(pagination)
