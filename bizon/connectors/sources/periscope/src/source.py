@@ -15,8 +15,6 @@ from bizon.source.source import AbstractSource
 
 BASE_URL = "https://app.periscopedata.com"
 
-URL_OWNERS = f"{BASE_URL}/users/owners"
-URL_VIEWS = f"{BASE_URL}/login_state/sql_views"
 URL_DATABASES = f"{BASE_URL}/welcome/remaining_state/site_models"
 
 
@@ -39,6 +37,7 @@ class PeriscopeSourceConfig(SourceConfig):
     workspace_name: str = Field(..., description="Name of the workspace")
     client_site_id: int = Field(..., description="Client site ID")
     database_id: int = Field(..., description="Fetch charts connected to this Database ID")
+    x_csrf_token: str = Field(..., description="CSRF token for the requests")
 
 
 class PeriscopeSource(AbstractSource):
@@ -49,7 +48,14 @@ class PeriscopeSource(AbstractSource):
 
     @staticmethod
     def streams() -> List[str]:
-        return ["dashboards", "charts", "users", "databases", "views"]
+        return [
+            "charts",
+            "dashboards_metadata",
+            "dashboards",
+            "databases",
+            "users",
+            "views",
+        ]
 
     @staticmethod
     def get_config_class() -> AbstractSource:
@@ -86,8 +92,9 @@ class PeriscopeSource(AbstractSource):
                         "sec-fetch-dest": "empty",
                         "sec-fetch-mode": "cors",
                         "sec-fetch-site": "same-origin",
-                        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",  # noqa
+                        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
                         "x-requested-with": "XMLHttpRequest",
+                        "x-csrf-token": self.config.x_csrf_token,
                     },
                 )
             )
@@ -97,10 +104,8 @@ class PeriscopeSource(AbstractSource):
     def get_total_records_count(self) -> int | None:
         return None
 
-    def get_dashboards(self, pagination: dict = None) -> SourceIteration:
-        response = self.session.call(method="GET", url=f"{BASE_URL}/login_state/dashboards", params=self.http_params)
-        records_json = response.json()["Dashboard"]
-
+    @staticmethod
+    def transform_response_to_source_iteration(records: List[dict]) -> SourceIteration:
         return SourceIteration(
             next_pagination=dict(),
             records=[
@@ -108,13 +113,68 @@ class PeriscopeSource(AbstractSource):
                     id=record["id"],
                     data=record,
                 )
-                for record in records_json
+                for record in records
             ],
         )
+
+    def get_dashboards(self, pagination: dict = None) -> SourceIteration:
+        response = self.session.call(
+            method="GET",
+            url=f"{BASE_URL}/login_state/dashboards",
+            params=self.http_params,
+        )
+        records_json = response.json()["Dashboard"]
+        return self.transform_response_to_source_iteration(records_json)
+
+    def get_dashboards_metadata(self, pagination: dict = None) -> SourceIteration:
+
+        params = {
+            "client_site_id": self.config.client_site_id,
+            "filters": [{"name": "typeFilter", "input": "Dashboard"}],
+            "limit": 2000,
+            "query_plan": None,
+        }
+
+        response = self.session.call(
+            method="POST",
+            url=f"{BASE_URL}/global_search/search",
+            json=params,
+        )
+        records_json = response.json()["results"]["data"]
+        return self.transform_response_to_source_iteration(records_json)
 
     def get_dashboard_ids(self) -> List[int]:
         source_iteration = self.get_dashboards()
         return [record.id for record in source_iteration.records]
+
+    def _extract_raw_text_from_textbox(self, data: dict) -> str:
+        raw_text = []
+
+        def clean_text(text: str):
+            """Strip Byte Order Mark (BOM) and other unwanted whitespace."""
+            return text.replace("\ufeff", "").strip()
+
+        def traverse_nodes(nodes):
+            for node in nodes:
+                if node["object"] == "text":
+                    for leaf in node["leaves"]:
+                        raw_text.append(clean_text(leaf["text"]))
+                elif node["type"] == "link" and "data" in node and "url" in node["data"]:
+                    link_text = []
+                    for leaf in node["nodes"][0]["leaves"]:  # Assume a single text node in link
+                        link_text.append(clean_text(leaf["text"]))
+                    # Format as Markdown link
+                    raw_text.append(f"[{''.join(link_text)}]({node['data']['url']})")
+                elif "nodes" in node:  # If there are nested nodes
+                    traverse_nodes(node["nodes"])
+
+        if not data["text_data"]:
+            return ""
+
+        # Start traversal from the root nodes
+        traverse_nodes(data["text_data"]["document"]["nodes"])
+
+        return " ".join(raw_text)
 
     def _get_charts(self, dashboard_id: int) -> List[dict]:
         MAXIMUM_ITERATION: int = 1000
@@ -154,12 +214,37 @@ class PeriscopeSource(AbstractSource):
                 iter_count += 1
                 iter_charts = response.json().get("Widget")
 
+                iter_textboxes = response.json().get("TextBox")
+
                 for chart in iter_charts:
+                    # Only fetch charts connected to gorgias-growth-production
                     if str(chart.get("database_id")) == str(self.config.database_id):
                         if chart.get("id") not in charts_list:
+
                             charts_list.add(chart.get("id"))
+
+                            chart["raw_text"] = None
+
+                            # In case the chart is a textbox, we parse the raw text
+                            if chart.get("content_id"):
+                                text_box = list(
+                                    filter(
+                                        lambda x: x.get("id") == chart.get("content_id"),
+                                        iter_textboxes,
+                                    )
+                                )
+
+                                if not text_box:
+                                    logger.error(
+                                        f"Failed to fetch the textbox with id: {chart.get('content_id')} for chart with id: {chart.get('id')}"
+                                    )
+
+                                if text_box:
+                                    chart["raw_text"] = self._extract_raw_text_from_textbox(text_box[0])
+
                             dashboard_charts.append(chart)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to fetch the dashboard with id: {dashboard_id} with error: {e}")
                 continue
 
         return dashboard_charts
@@ -200,11 +285,50 @@ class PeriscopeSource(AbstractSource):
             ],
         )
 
+    def get_views(self, pagination: dict = None) -> SourceIteration:
+        response = self.session.call(
+            method="GET",
+            url=f"{BASE_URL}/login_state/sql_views",
+            params=self.http_params,
+        )
+        records_json = response.json()["SqlView"]
+        return self.transform_response_to_source_iteration(records_json)
+
+    def get_users(self, pagination: dict = None) -> SourceIteration:
+        response = self.session.call(
+            method="GET",
+            url=f"{BASE_URL}/users/owners",
+            params=self.http_params,
+        )
+        records_json = response.json()
+        return self.transform_response_to_source_iteration(records_json)
+
+    def get_databases(self, pagination: dict = None) -> SourceIteration:
+        response = self.session.call(
+            method="GET",
+            url=URL_DATABASES,
+            params=self.http_params,
+        )
+        records_json = response.json()["Database"]
+        return self.transform_response_to_source_iteration(records_json)
+
     def get(self, pagination: dict = None) -> SourceIteration:
-        if self.config.stream_name == "dashboards":
+        if self.config.stream == "dashboards":
             return self.get_dashboards(pagination)
 
-        if self.config.stream_name == "charts":
+        elif self.config.stream == "charts":
             return self.get_charts(pagination)
 
-        raise NotImplementedError(f"Stream {self.config.stream_name} not implemented for Periscope")
+        elif self.config.stream == "dashboards_metadata":
+            return self.get_dashboards_metadata(pagination)
+
+        elif self.config.stream == "views":
+            return self.get_views(pagination)
+
+        elif self.config.stream == "users":
+            return self.get_users(pagination)
+
+        elif self.config.stream == "databases":
+            return self.get_databases(pagination)
+
+        raise NotImplementedError(f"Stream {self.config.stream} not implemented for Periscope")
