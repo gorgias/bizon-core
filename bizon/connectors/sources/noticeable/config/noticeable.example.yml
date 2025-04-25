@@ -1,0 +1,16 @@
+name: noticeable to file
+
+source:
+  name: noticeable
+  stream: email_opened_events
+  project_id: <noticeable_project_id>
+  authentication:
+    type: api_key
+    params:
+      token: <noticeable_api_key>
+      auth_method: Apikey
+
+destination:
+  name: file
+  config:
+    destination_id: noticeable.jsonl
