@@ -1,3 +1,4 @@
+import uuid
 from typing import Any, List, Tuple
 
 from pydantic import Field
@@ -26,7 +27,7 @@ class NoticeableSource(AbstractSource):
 
     @staticmethod
     def streams() -> List[str]:
-        return ["email_opened_events", "publications", "publication_comments"]
+        return ["email_opened_events", "publications", "publication_comments", "email_subscriptions"]
 
     @staticmethod
     def get_config_class() -> SourceConfig:
@@ -229,6 +230,51 @@ class NoticeableSource(AbstractSource):
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
+    def get_email_subscriptions(self, pagination: dict) -> SourceIteration:
+        """Return all the email subscriptions for the given project"""
+
+        pagination_str = self._get_pagination_str(pagination=pagination)
+        query = """
+            query {
+                project(projectId: "$project_id") {
+                    emailSubscriptions(first: 100 $PAGINATION_STRING) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                            hasPreviousPage
+                            startCursor
+                        }
+                        edges {
+                            cursor
+                            node {
+                                createdAt
+                                displayName
+                                email
+                                isArchived
+                                status
+                                updatedAt
+                            }
+                        }
+                    }
+                }
+            }
+        """.replace(
+            "$PAGINATION_STRING", pagination_str
+        ).replace(
+            "$project_id", self.config.project_id
+        )
+        data = self.run_graphql_query(query)
+
+        # Parse edges from response
+        edges = data.get("data", {}).get("project", {}).get("emailSubscriptions", {}).get("edges", [])
+
+        records = [SourceRecord(id=str(uuid.uuid4()), data=edge["node"]) for edge in edges]
+        # Get pagination info from response
+        pagination_info = data.get("data", {}).get("project", {}).get("emailSubscriptions", {}).get("pageInfo", {})
+        next_pagination = pagination_info if pagination_info.get("hasNextPage") else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
     def get(self, pagination: dict = None) -> SourceIteration:
         if self.config.stream == "email_opened_events":
             return self.get_email_opened_events(pagination)
@@ -236,5 +282,7 @@ class NoticeableSource(AbstractSource):
             return self.get_publications(pagination)
         if self.config.stream == "publication_comments":
             return self.get_publication_comments(pagination)
+        if self.config.stream == "email_subscriptions":
+            return self.get_email_subscriptions(pagination)
 
         raise NotImplementedError(f"Stream {self.config.stream} not implemented for Noticeable")
