@@ -26,7 +26,7 @@ class NoticeableSource(AbstractSource):
 
     @staticmethod
     def streams() -> List[str]:
-        return ["email_opened_events", "publications"]
+        return ["email_opened_events", "publications", "publication_comments"]
 
     @staticmethod
     def get_config_class() -> SourceConfig:
@@ -170,10 +170,71 @@ class NoticeableSource(AbstractSource):
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
+    def get_publication_comments(self, pagination: dict) -> SourceIteration:
+        """Return all the publication comments for the given project"""
+
+        pagination_str = self._get_pagination_str(pagination=pagination)
+
+        query = """
+            query {
+                publicationComments(projectId: "$project_id" first: 10 $PAGINATION_STRING) {
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                        hasPreviousPage
+                        startCursor
+                    }
+                    edges {
+                        cursor
+                        node {
+                            author {
+                                avatar
+                                browser
+                                displayName
+                                email
+                                id
+                                os
+                                platform
+                            }
+                            content {
+                                plaintext
+                            }
+                            createdAt
+                            handledAt
+                            id
+                            origin
+                            projectId
+                            publicationId
+                            referer
+                        }
+                    }
+                }
+            }
+
+        """.replace(
+            "$PAGINATION_STRING", pagination_str
+        ).replace(
+            "$project_id", self.config.project_id
+        )
+
+        data = self.run_graphql_query(query)
+
+        # Parse edges from response
+        edges = data.get("data", {}).get("publicationComments", {}).get("edges", [])
+
+        records = [SourceRecord(id=edge["node"]["id"], data=edge["node"]) for edge in edges]
+        # Get pagination info from response
+        pagination_info = data.get("data", {}).get("publicationComments", {}).get("pageInfo", {})
+        next_pagination = pagination_info if pagination_info.get("hasNextPage") else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
     def get(self, pagination: dict = None) -> SourceIteration:
         if self.config.stream == "email_opened_events":
             return self.get_email_opened_events(pagination)
         if self.config.stream == "publications":
             return self.get_publications(pagination)
+        if self.config.stream == "publication_comments":
+            return self.get_publication_comments(pagination)
 
         raise NotImplementedError(f"Stream {self.config.stream} not implemented for Noticeable")
