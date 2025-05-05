@@ -174,7 +174,8 @@ class KafkaSource(AbstractSource):
         else:
             raise ValueError(f"Schema registry type {self.config.authentication.schema_registry_type} not supported")
 
-    def decode_avro(self, message: Message) -> dict:
+    def decode_avro(self, message: Message) -> Tuple[dict, dict]:
+        """Decode the message as avro and return the parsed message and the schema"""
         # Get the header bytes and the global id from the message
         header_message_bytes = get_header_bytes(
             nb_bytes_schema_id=self.config.nb_bytes_schema_id, message=message.value()
@@ -196,18 +197,25 @@ class KafkaSource(AbstractSource):
             logger.error(traceback.format_exc())
             raise e
 
-        return decode_avro_message(
-            message=message,
-            nb_bytes_schema_id=self.config.nb_bytes_schema_id,
-            hashable_dict_schema=hashable_dict_schema,
-            avro_schema=avro_schema,
+        return (
+            decode_avro_message(
+                message=message,
+                nb_bytes_schema_id=self.config.nb_bytes_schema_id,
+                hashable_dict_schema=hashable_dict_schema,
+                avro_schema=avro_schema,
+            ),
+            hashable_dict_schema,
         )
 
-    def decode_utf_8(self, message: Message):
+    def decode_utf_8(self, message: Message) -> Tuple[dict, dict]:
+        """Decode the message as utf-8 and return the parsed message and the schema"""
         # Decode the message as utf-8
-        return orjson.loads(message.value().decode("utf-8"))
+        return orjson.loads(message.value().decode("utf-8")), {}
 
-    def decode(self, message):
+    def decode(self, message) -> Tuple[dict, dict]:
+        """Decode the message based on the encoding type
+        Returns parsed message and the schema
+        """
         if self.config.message_encoding == MessageEncoding.AVRO:
             return self.decode_avro(message)
 
@@ -252,6 +260,8 @@ class KafkaSource(AbstractSource):
             # Decode the message
             try:
 
+                decoded_message, hashable_dict_schema = self.decode(message)
+
                 data = {
                     "topic": message.topic(),
                     "offset": message.offset(),
@@ -261,7 +271,8 @@ class KafkaSource(AbstractSource):
                     "headers": (
                         {key: value.decode("utf-8") for key, value in message.headers()} if message.headers() else {}
                     ),
-                    "value": self.decode(message),
+                    "value": decoded_message,
+                    "schema": hashable_dict_schema,
                 }
 
                 records.append(
