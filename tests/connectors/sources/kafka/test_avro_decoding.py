@@ -108,8 +108,7 @@ def test_parse_global_id_unsupported():
 
 
 @patch("bizon.connectors.sources.kafka.src.decode.fastavro.schemaless_reader")
-@patch("bizon.connectors.sources.kafka.src.decode.parse_debezium_json_fields")
-def test_decode_avro_message(mock_parse_json, mock_reader, test_data):
+def test_decode_avro_message(mock_reader, test_data):
     """Test decoding an Avro message"""
     # Set up the mock to return our test data
     mock_reader.return_value = test_data["data"]
@@ -123,9 +122,6 @@ def test_decode_avro_message(mock_parse_json, mock_reader, test_data):
 
     # Verify the result
     assert result == test_data["data"]
-
-    # Verify that the JSON fields were parsed
-    mock_parse_json.assert_called_once_with(data=test_data["data"], hashable_schema=test_data["hashable_schema"])
 
     # Verify that the reader was called correctly
     mock_reader.assert_called_once()

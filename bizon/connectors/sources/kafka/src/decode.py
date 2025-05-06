@@ -47,7 +47,4 @@ def decode_avro_message(
     message_bytes.seek(nb_bytes_schema_id + 1)
     data = fastavro.schemaless_reader(message_bytes, avro_schema.to_json())
 
-    # Parse the JSON fields in-place
-    # parse_debezium_json_fields(data=data, hashable_schema=hashable_dict_schema)
-
     return data
