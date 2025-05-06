@@ -11,9 +11,7 @@ from avro.schema import parse
 from bizon.connectors.sources.kafka.src.decode import (
     Hashabledict,
     decode_avro_message,
-    find_debezium_json_fields,
     get_header_bytes,
-    parse_debezium_json_fields,
     parse_global_id_from_serialized_message,
 )
 
@@ -109,50 +107,8 @@ def test_parse_global_id_unsupported():
         parse_global_id_from_serialized_message(6, b"123456")
 
 
-def test_find_debezium_json_fields(test_data):
-    """Test finding JSON fields in Debezium schema"""
-    json_fields = find_debezium_json_fields(test_data["hashable_schema"])
-
-    # Based on the provided schema, we expect "children" to be a JSON field
-    assert "children" in json_fields
-
-
-def test_parse_debezium_json_fields(test_data):
-    """Test parsing JSON fields from Debezium data"""
-    # Create a copy of data to test modification in-place
-    data_copy = test_data["data"].copy()
-
-    # Before parsing, the "children" field should be a string
-    assert isinstance(data_copy["after"]["children"], str)
-
-    # Parse the JSON fields
-    parse_debezium_json_fields(data_copy, test_data["hashable_schema"])
-
-    # After parsing, the "children" field should be parsed into a list/dict
-    assert isinstance(data_copy["after"]["children"], list)
-
-
-def test_parse_debezium_json_fields_with_emtpy_string(test_data):
-    """Test parsing JSON fields from Debezium data with a null value"""
-    # Create a copy of data to test modification in-place
-    data_copy = test_data["data"].copy()
-
-    # Set the "children" field to an empty string
-    data_copy["after"]["children"] = ""
-
-    # Before parsing, the "children" field should be a string
-    assert isinstance(data_copy["after"]["children"], str)
-
-    # Parse the JSON fields
-    parse_debezium_json_fields(data_copy, test_data["hashable_schema"])
-
-    # After parsing, the "children" field should be parsed as None
-    assert data_copy["after"]["children"] == None
-
-
 @patch("bizon.connectors.sources.kafka.src.decode.fastavro.schemaless_reader")
-@patch("bizon.connectors.sources.kafka.src.decode.parse_debezium_json_fields")
-def test_decode_avro_message(mock_parse_json, mock_reader, test_data):
+def test_decode_avro_message(mock_reader, test_data):
     """Test decoding an Avro message"""
     # Set up the mock to return our test data
     mock_reader.return_value = test_data["data"]
@@ -166,9 +122,6 @@ def test_decode_avro_message(mock_parse_json, mock_reader, test_data):
 
     # Verify the result
     assert result == test_data["data"]
-
-    # Verify that the JSON fields were parsed
-    mock_parse_json.assert_called_once_with(data=test_data["data"], hashable_schema=test_data["hashable_schema"])
 
     # Verify that the reader was called correctly
     mock_reader.assert_called_once()
