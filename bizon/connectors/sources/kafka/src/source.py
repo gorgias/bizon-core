@@ -33,6 +33,7 @@ from .decode import (
 
 
 class SchemaNotFound(Exception):
+    """Schema not found in the Schema Registry"""
     pass
 
 
@@ -226,6 +227,7 @@ class KafkaSource(AbstractSource):
             raise ValueError(f"Message encoding {self.config.message_encoding} not supported")
 
     def parse_encoded_messages(self, encoded_messages: list) -> List[SourceRecord]:
+        """Parse the encoded Kafka messages and return a list of SourceRecord"""
 
         records = []
 
@@ -369,4 +371,5 @@ class KafkaSource(AbstractSource):
             return self.read_topics_manually(pagination)
 
     def commit(self):
+        """Commit the offsets of the consumer"""
         self.consumer.commit(asynchronous=False)
