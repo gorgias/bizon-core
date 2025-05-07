@@ -33,6 +33,7 @@ from .decode import (
 
 
 class SchemaNotFound(Exception):
+    """Schema not found in the Schema Registry"""
     pass
 
 
