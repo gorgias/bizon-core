@@ -370,4 +370,5 @@ class KafkaSource(AbstractSource):
             return self.read_topics_manually(pagination)
 
     def commit(self):
+        """Commit the offsets of the consumer"""
         self.consumer.commit(asynchronous=False)
