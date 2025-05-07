@@ -226,6 +226,7 @@ class KafkaSource(AbstractSource):
             raise ValueError(f"Message encoding {self.config.message_encoding} not supported")
 
     def parse_encoded_messages(self, encoded_messages: list) -> List[SourceRecord]:
+        """Parse the encoded Kafka messages and return a list of SourceRecord"""
 
         records = []
 
