@@ -191,6 +191,14 @@ class AbstractDestination(ABC):
         logger.info(
             f"Buffer ripeness {round(self.buffer.ripeness / 60, 2)} min. Max ripeness {round(self.buffer.buffer_flush_timeout / 60, 2)} min."  # noqa
         )
+        logger.info(
+            f"Current records size to process: {round(df_destination_records.estimated_size(unit='b') / 1024 / 1024, 2)} Mb."
+        )
+
+        if df_destination_records.estimated_size(unit="b") > self.buffer.buffer_size:
+            raise ValueError(
+                f"Records size {round(df_destination_records.estimated_size(unit='b') / 1024 / 1024, 2)} Mb is greater than buffer size {round(self.buffer.buffer_size / 1024 / 1024, 2)} Mb. Please increase destination buffer_size or reduce batch_size from the source."
+            )
 
         # Write buffer to destination if buffer is ripe and create a new buffer for the new iteration
         if self.buffer.is_ripe:
