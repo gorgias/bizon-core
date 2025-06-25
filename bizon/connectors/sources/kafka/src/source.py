@@ -34,6 +34,7 @@ from .decode import (
 
 class SchemaNotFound(Exception):
     """Schema not found in the Schema Registry"""
+
     pass
 
 
@@ -76,7 +77,7 @@ class KafkaSource(AbstractSource):
         self.config.consumer_config["bootstrap.servers"] = self.config.bootstrap_servers
 
         # Consumer instance
-        self.consumer = Consumer(self.config.consumer_config, logger=logger)
+        self.consumer = Consumer(self.config.consumer_config)
 
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
 
