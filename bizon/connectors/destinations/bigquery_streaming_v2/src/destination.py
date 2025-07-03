@@ -6,7 +6,14 @@ from typing import List, Tuple, Type
 
 import orjson
 import polars as pl
-from google.api_core.exceptions import Conflict, NotFound
+import urllib3.exceptions
+from google.api_core.exceptions import (
+    Conflict,
+    NotFound,
+    RetryError,
+    ServerError,
+    ServiceUnavailable,
+)
 from google.cloud import bigquery, bigquery_storage_v1
 from google.cloud.bigquery import DatasetReference, TimePartitioning
 from google.cloud.bigquery_storage_v1.types import (
@@ -17,6 +24,13 @@ from google.cloud.bigquery_storage_v1.types import (
 from google.protobuf.json_format import ParseDict
 from google.protobuf.message import Message
 from loguru import logger
+from requests.exceptions import ConnectionError, SSLError, Timeout
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
@@ -103,6 +117,26 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             dataset = self.bq_client.create_dataset(dataset)
         return True
 
+    @retry(
+        retry=retry_if_exception_type(
+            (
+                ServerError,
+                ServiceUnavailable,
+                SSLError,
+                ConnectionError,
+                Timeout,
+                RetryError,
+                urllib3.exceptions.ProtocolError,
+                urllib3.exceptions.SSLError,
+            )
+        ),
+        wait=wait_exponential(multiplier=2, min=4, max=120),
+        stop=stop_after_attempt(8),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Streaming append attempt {retry_state.attempt_number} failed. "
+            f"Retrying in {retry_state.next_action.sleep} seconds..."
+        ),
+    )
     def append_rows_to_stream(
         self,
         write_client: bigquery_storage_v1.BigQueryWriteClient,
@@ -120,6 +154,25 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         response = write_client.append_rows(iter([request]))
         return response.code().name
 
+    @retry(
+        retry=retry_if_exception_type(
+            (
+                ServerError,
+                ServiceUnavailable,
+                SSLError,
+                ConnectionError,
+                Timeout,
+                RetryError,
+                urllib3.exceptions.ProtocolError,
+                urllib3.exceptions.SSLError,
+            )
+        ),
+        wait=wait_exponential(multiplier=2, min=4, max=120),
+        stop=stop_after_attempt(8),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Attempt {retry_state.attempt_number} failed. Retrying in {retry_state.next_action.sleep} seconds..."
+        ),
+    )
     def process_streaming_batch(
         self,
         write_client: bigquery_storage_v1.BigQueryWriteClient,
@@ -127,7 +180,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         proto_schema: ProtoSchema,
         batch: dict,
     ) -> Tuple[str, str]:
-        """Process a single batch for streaming or large rows."""
+        """Process a single batch for streaming or large rows with retry logic."""
         try:
             if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
                 result = self.append_rows_to_stream(write_client, stream_name, proto_schema, batch["stream_batch"])
@@ -288,6 +341,8 @@ class BigQueryStreamingV2Destination(AbstractDestination):
 
         except Exception as e:
             logger.error(f"Error in multithreaded batch processing: {str(e)}, type: {type(e)}")
+            if isinstance(e, RetryError):
+                logger.error(f"Retry error details: {e.cause if hasattr(e, 'cause') else 'No cause available'}")
             raise
 
         if len(streaming_results) > 0:
