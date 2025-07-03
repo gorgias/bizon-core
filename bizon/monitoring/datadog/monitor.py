@@ -68,7 +68,7 @@ class DatadogMonitor(AbstractMonitor):
             tags=self.tags + [f"{key}:{value}" for key, value in extra_tags.items()],
         )
 
-    def track_dsm_stream_consume(self, kafka_topic: str) -> None:
+    def track_dsm_stream_consume(self, kafka_topic: str) -> Dict[str, str]:
         """
         Track the number of records consumed from a Kafka topic.
 
@@ -81,10 +81,10 @@ class DatadogMonitor(AbstractMonitor):
 
             headers = {}
             set_consume_checkpoint("kafka", kafka_topic, headers.get)
+            return headers
 
-    def track_dsm_stream_produce(self, full_table_id: str) -> None:
+    def track_dsm_stream_produce(self, full_table_id: str, headers: Dict[str, str]) -> None:
         if os.getenv("DD_DATA_STREAMS_ENABLED") == "true":
             from ddtrace.data_streams import set_produce_checkpoint
 
-            headers = {}
             set_produce_checkpoint("bigquery", full_table_id, headers.setdefault)
