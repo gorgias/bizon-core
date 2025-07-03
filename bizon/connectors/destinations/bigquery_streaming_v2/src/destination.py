@@ -1,11 +1,12 @@
 import os
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List, Tuple, Type
 
+import orjson
 import polars as pl
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import Conflict, NotFound
 from google.cloud import bigquery, bigquery_storage_v1
 from google.cloud.bigquery import DatasetReference, TimePartitioning
 from google.cloud.bigquery_storage_v1.types import (
@@ -119,8 +120,49 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         response = write_client.append_rows(iter([request]))
         return response.code().name
 
+    def process_streaming_batch(
+        self,
+        write_client: bigquery_storage_v1.BigQueryWriteClient,
+        stream_name: str,
+        proto_schema: ProtoSchema,
+        batch: dict,
+    ) -> Tuple[str, str]:
+        """Process a single batch for streaming or large rows."""
+        try:
+            if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
+                result = self.append_rows_to_stream(write_client, stream_name, proto_schema, batch["stream_batch"])
+                return "streaming", result
+            elif batch.get("json_batch") and len(batch["json_batch"]) > 0:
+                # For large rows, we need to use the main client
+                job_config = bigquery.LoadJobConfig(
+                    source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                    schema=self.bq_client.get_table(self.table_id).schema,
+                    ignore_unknown_values=True,
+                )
+                load_job = self.bq_client.load_table_from_json(
+                    batch["json_batch"], self.table_id, job_config=job_config, timeout=300
+                )
+                result = load_job.result()
+                if load_job.state != "DONE":
+                    raise Exception(f"Failed to load rows to BigQuery: {load_job.errors}")
+                return "large_rows", "DONE"
+            return "empty", "SKIPPED"
+        except Exception as e:
+            logger.error(f"Error processing batch: {str(e)}")
+            raise
+
     def safe_cast_record_values(self, row: dict):
+        """
+        Safe cast record values to the correct type for BigQuery.
+        """
         for col in self.record_schemas[self.destination_id]:
+
+            # Handle dicts as strings
+            if col.type in ["STRING", "JSON"]:
+                if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
+                    row[col.name] = orjson.dumps(row[col.name]).decode("utf-8")
+
+            # Handle timestamps
             if col.type in ["TIMESTAMP", "DATETIME"] and col.default_value_expression is None:
                 if isinstance(row[col.name], int):
                     if row[col.name] > datetime(9999, 12, 31).timestamp():
@@ -148,10 +190,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
 
     def load_to_bigquery_via_streaming(self, df_destination_records: pl.DataFrame) -> str:
 
-        # TODO: for now no clustering keys
-        clustering_keys = []
-
-        # Create table if it doesnt exist
+        # Create table if it does not exist
         schema = self.get_bigquery_schema()
         table = bigquery.Table(self.table_id, schema=schema)
         time_partitioning = TimePartitioning(
@@ -159,12 +198,24 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         )
         table.time_partitioning = time_partitioning
 
-        # Override bigquery client with project's destination id
-        if self.destination_id:
-            project, dataset, table_name = self.destination_id.split(".")
-            self.bq_client = bigquery.Client(project=project)
+        if self.clustering_keys and self.clustering_keys[self.destination_id]:
+            table.clustering_fields = self.clustering_keys[self.destination_id]
+        try:
+            table = self.bq_client.create_table(table)
+        except Conflict:
+            table = self.bq_client.get_table(self.table_id)
+            # Compare and update schema if needed
+            existing_fields = {field.name: field for field in table.schema}
+            new_fields = {field.name: field for field in self.get_bigquery_schema()}
 
-        table = self.bq_client.create_table(table, exists_ok=True)
+            # Find fields that need to be added
+            fields_to_add = [field for name, field in new_fields.items() if name not in existing_fields]
+
+            if fields_to_add:
+                logger.warning(f"Adding new fields to table schema: {[field.name for field in fields_to_add]}")
+                updated_schema = table.schema + fields_to_add
+                table.schema = updated_schema
+                table = self.bq_client.update_table(table, ["schema"])
 
         # Create the stream
         if self.destination_id:
@@ -178,12 +229,14 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         stream_name = f"{parent}/_default"
 
         # Generating the protocol buffer representation of the message descriptor.
-        proto_schema, TableRow = get_proto_schema_and_class(schema, clustering_keys)
+        proto_schema, TableRow = get_proto_schema_and_class(schema)
 
         if self.config.unnest:
             serialized_rows = [
-                self.to_protobuf_serialization(TableRowClass=TableRow, row=self.safe_cast_record_values(row))
-                for row in df_destination_records["source_data"].str.json_decode(infer_schema_length=None).to_list()
+                self.to_protobuf_serialization(
+                    TableRowClass=TableRow, row=self.safe_cast_record_values(orjson.loads(row))
+                )
+                for row in df_destination_records["source_data"].to_list()
             ]
         else:
             df_destination_records = df_destination_records.with_columns(
@@ -207,16 +260,40 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                 for row in df_destination_records.iter_rows(named=True)
             ]
 
-        results = []
-        with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(self.append_rows_to_stream, write_client, stream_name, proto_schema, batch_rows)
-                for batch_rows in self.batch(serialized_rows)
-            ]
-            for future in futures:
-                results.append(future.result())
+        streaming_results = []
+        large_rows_results = []
 
-        assert all([r == "OK" for r in results]) is True, "Failed to append rows to stream"
+        # Collect all batches first
+        batches = list(self.batch(serialized_rows))
+
+        # Use ThreadPoolExecutor for parallel processing
+        max_workers = min(len(batches), 10)  # Limit to 10 concurrent threads
+        logger.info(f"Processing {len(batches)} batches with {max_workers} concurrent threads")
+
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all batch processing tasks
+                future_to_batch = {
+                    executor.submit(self.process_streaming_batch, write_client, stream_name, proto_schema, batch): batch
+                    for batch in batches
+                }
+
+                # Collect results as they complete
+                for future in as_completed(future_to_batch):
+                    batch_type, result = future.result()
+                    if batch_type == "streaming":
+                        streaming_results.append(result)
+                    if batch_type == "large_rows":
+                        large_rows_results.append(result)
+
+        except Exception as e:
+            logger.error(f"Error in multithreaded batch processing: {str(e)}, type: {type(e)}")
+            raise
+
+        if len(streaming_results) > 0:
+            assert all([r == "OK" for r in streaming_results]) is True, "Failed to append rows to stream"
+        if len(large_rows_results) > 0:
+            assert all([r == "DONE" for r in large_rows_results]) is True, "Failed to load rows to BigQuery"
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:
         self.load_to_bigquery_via_streaming(df_destination_records=df_destination_records)
