@@ -46,9 +46,6 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
         default=None, description="Schema for the records. Required if unnest is set to true."
     )
 
-    class Config:
-        extra = "forbid"
-
 
 class BigQueryStreamingConfig(AbstractDestinationConfig):
     name: Literal[DestinationTypes.BIGQUERY_STREAMING]
