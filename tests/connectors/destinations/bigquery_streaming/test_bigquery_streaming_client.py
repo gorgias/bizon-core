@@ -607,7 +607,6 @@ def test_streaming_unnested_records_legacy_clustering_keys(my_backend_config, sy
             project_id=TEST_PROJECT_ID,
             dataset_id=TEST_DATASET_ID,
             unnest=True,
-            use_legacy_streaming_api=True,
             time_partitioning={"type": "DAY", "field": "created_at"},
             record_schemas=[
                 {
