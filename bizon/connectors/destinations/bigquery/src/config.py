@@ -123,5 +123,6 @@ class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
 
 class BigQueryConfig(AbstractDestinationConfig):
     name: Literal[DestinationTypes.BIGQUERY]
+    alias: str = "bigquery"
     buffer_size: Optional[int] = 400
     config: BigQueryConfigDetails

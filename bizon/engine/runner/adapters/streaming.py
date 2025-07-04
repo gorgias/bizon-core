@@ -77,6 +77,8 @@ class StreamingRunner(AbstractRunner):
             for destination_id, records in destination_id_indexed_records.items():
                 df_source_records = StreamingRunner.convert_source_records(records)
 
+                dsm_headers = monitor.track_source_iteration(record=records[0])
+
                 # Apply transformation
                 df_source_records = transform.apply_transforms(df_source_records=df_source_records)
 
@@ -92,8 +94,11 @@ class StreamingRunner(AbstractRunner):
                 )
                 monitor.track_records_synced(
                     num_records=len(df_destination_records),
+                    destination_id=destination_id,
                     extra_tags={"destination_id": destination_id},
+                    headers=dsm_headers,
                 )
+
             if os.getenv("ENVIRONMENT") == "production":
                 source.commit()
 
