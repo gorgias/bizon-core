@@ -32,9 +32,7 @@ def map_bq_type_to_field_descriptor(bq_type: str) -> int:
     return type_map.get(bq_type, FieldDescriptorProto.TYPE_STRING)  # Default to TYPE_STRING
 
 
-def get_proto_schema_and_class(
-    bq_schema: List[SchemaField], clustering_keys: List[str] = None
-) -> Tuple[ProtoSchema, Type[Message]]:
+def get_proto_schema_and_class(bq_schema: List[SchemaField]) -> Tuple[ProtoSchema, Type[Message]]:
     """Generate a ProtoSchema and a TableRow class for unnested BigQuery schema."""
     # Define the FileDescriptorProto
     file_descriptor_proto = FileDescriptorProto()
@@ -59,16 +57,6 @@ def get_proto_schema_and_class(
         }
         for col in bq_schema
     ]
-
-    if clustering_keys:
-        for key in clustering_keys:
-            fields.append(
-                {
-                    "name": key,
-                    "type": FieldDescriptorProto.TYPE_STRING,
-                    "label": FieldDescriptorProto.LABEL_OPTIONAL,
-                }
-            )
 
     for i, field in enumerate(fields, start=1):
         field_descriptor = message_descriptor.field.add()
