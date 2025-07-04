@@ -28,7 +28,9 @@ class AbstractMonitor(ABC):
         """
         pass
 
-    def track_records_synced(self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}) -> None:
+    def track_records_synced(
+        self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}, headers: Dict[str, str] = {}
+    ) -> None:
         """
         Track the number of records synced in the pipeline.
         """
