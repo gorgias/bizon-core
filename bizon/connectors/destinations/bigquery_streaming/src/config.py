@@ -45,10 +45,6 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
     record_schemas: Optional[list[BigQueryRecordSchemaConfig]] = Field(
         default=None, description="Schema for the records. Required if unnest is set to true."
     )
-    use_legacy_streaming_api: bool = Field(
-        default=False,
-        description="[DEPRECATED] Use the legacy streaming API. This is required for some older BigQuery versions.",
-    )
 
 
 class BigQueryStreamingConfig(AbstractDestinationConfig):
