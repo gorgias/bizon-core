@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Dict, Union
 
 from datadog import initialize, statsd
 from loguru import logger
@@ -7,6 +7,7 @@ from loguru import logger
 from bizon.common.models import BizonConfig
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.monitoring.monitor import AbstractMonitor
+from bizon.source.models import SourceRecord
 
 
 class DatadogMonitor(AbstractMonitor):
@@ -55,7 +56,9 @@ class DatadogMonitor(AbstractMonitor):
             + [f"{key}:{value}" for key, value in extra_tags.items()],
         )
 
-    def track_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
+    def track_records_synced(
+        self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}, headers: Dict[str, str] = {}
+    ) -> None:
         """
         Track the number of records synced in the pipeline.
 
@@ -67,8 +70,14 @@ class DatadogMonitor(AbstractMonitor):
             value=num_records,
             tags=self.tags + [f"{key}:{value}" for key, value in extra_tags.items()],
         )
+        if os.getenv("DD_DATA_STREAMS_ENABLED") == "true":
+            from ddtrace.data_streams import set_produce_checkpoint
 
-    def track_dsm_stream_consume(self, kafka_topic: str) -> Dict[str, str]:
+            destination_type = self.pipeline_config.destination.alias
+
+            set_produce_checkpoint(destination_type, destination_id, headers.setdefault)
+
+    def track_source_iteration(self, record: SourceRecord) -> Union[Dict[str, str], None]:
         """
         Track the number of records consumed from a Kafka topic.
 
@@ -80,11 +89,5 @@ class DatadogMonitor(AbstractMonitor):
             from ddtrace.data_streams import set_consume_checkpoint
 
             headers = {}
-            set_consume_checkpoint("kafka", kafka_topic, headers.get)
+            set_consume_checkpoint("kafka", record.data["topic"], headers.get)
             return headers
-
-    def track_dsm_stream_produce(self, full_table_id: str, headers: Dict[str, str]) -> None:
-        if os.getenv("DD_DATA_STREAMS_ENABLED") == "true":
-            from ddtrace.data_streams import set_produce_checkpoint
-
-            set_produce_checkpoint("bigquery", full_table_id, headers.setdefault)

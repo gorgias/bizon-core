@@ -4,6 +4,7 @@ from typing import Dict
 from bizon.common.models import BizonConfig
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.monitoring.config import MonitorType
+from bizon.source.models import SourceRecord
 
 
 class AbstractMonitor(ABC):
@@ -21,7 +22,13 @@ class AbstractMonitor(ABC):
         """
         pass
 
-    def track_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
+    def track_source_iteration(self, record: SourceRecord, headers: Dict[str, str] = {}) -> None:
+        """
+        Run a process that tracks the source iteration.
+        """
+        pass
+
+    def track_records_synced(self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}) -> None:
         """
         Track the number of records synced in the pipeline.
         """
