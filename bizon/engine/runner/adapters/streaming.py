@@ -78,7 +78,10 @@ class StreamingRunner(AbstractRunner):
             for destination_id, records in destination_id_indexed_records.items():
                 df_source_records = StreamingRunner.convert_source_records(records)
 
-                if monitor.pipeline_config.monitoring.type == MonitorType.DATADOG:
+                if (
+                    monitor.pipeline_config.monitoring
+                    and monitor.pipeline_config.monitoring.type == MonitorType.DATADOG
+                ):
                     dsm_headers = monitor.track_dsm_stream_consume(kafka_topic=records[0].data["topic"])
 
                 # Apply transformation
@@ -98,7 +101,10 @@ class StreamingRunner(AbstractRunner):
                     num_records=len(df_destination_records),
                     extra_tags={"destination_id": destination_id},
                 )
-                if monitor.pipeline_config.monitoring.type == MonitorType.DATADOG:
+                if (
+                    monitor.pipeline_config.monitoring
+                    and monitor.pipeline_config.monitoring.type == MonitorType.DATADOG
+                ):
                     monitor.track_dsm_stream_produce(full_table_id=destination_id, headers=dsm_headers)
 
             if os.getenv("ENVIRONMENT") == "production":
