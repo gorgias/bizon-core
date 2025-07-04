@@ -58,7 +58,7 @@ class DatadogMonitor(AbstractMonitor):
 
     def track_records_synced(
         self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}, headers: Dict[str, str] = {}
-    ) -> None:
+    ) -> Union[Dict[str, str], None]:
         """
         Track the number of records synced in the pipeline.
 
@@ -76,6 +76,7 @@ class DatadogMonitor(AbstractMonitor):
             destination_type = self.pipeline_config.destination.alias
 
             set_produce_checkpoint(destination_type, destination_id, headers.setdefault)
+            return headers
 
     def track_source_iteration(self, record: SourceRecord) -> Union[Dict[str, str], None]:
         """
