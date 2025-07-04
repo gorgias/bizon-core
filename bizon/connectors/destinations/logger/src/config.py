@@ -15,4 +15,5 @@ class LoggerDestinationConfig(AbstractDestinationDetailsConfig):
 
 class LoggerConfig(AbstractDestinationConfig):
     name: Literal[DestinationTypes.LOGGER]
+    alias: str = "logger"
     config: LoggerDestinationConfig
