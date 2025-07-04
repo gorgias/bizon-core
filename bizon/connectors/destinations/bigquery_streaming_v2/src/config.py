@@ -49,4 +49,5 @@ class BigQueryStreamingV2ConfigDetails(AbstractDestinationDetailsConfig):
 
 class BigQueryStreamingV2Config(AbstractDestinationConfig):
     name: Literal[DestinationTypes.BIGQUERY_STREAMING_V2]
+    alias: str = "bigquery"
     config: BigQueryStreamingV2ConfigDetails

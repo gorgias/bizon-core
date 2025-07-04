@@ -20,4 +20,5 @@ class FileDestinationDetailsConfig(AbstractDestinationDetailsConfig):
 
 class FileDestinationConfig(AbstractDestinationConfig):
     name: Literal[DestinationTypes.FILE]
+    alias: str = "file"
     config: FileDestinationDetailsConfig

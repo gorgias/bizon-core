@@ -11,6 +11,7 @@ from bizon.destination.config import (
 def test_config():
     config = AbstractDestinationConfig(
         name="file",
+        alias="file",
         config=AbstractDestinationDetailsConfig(
             unnest=False,
         ),
@@ -23,6 +24,7 @@ def test_config_no_record_schema_provided():
     with pytest.raises(ValidationError) as e:
         AbstractDestinationConfig(
             name="file",
+            alias="file",
             config=AbstractDestinationDetailsConfig(
                 unnest=True,
             ),
@@ -32,6 +34,7 @@ def test_config_no_record_schema_provided():
 def test_config_with_unnest_provided_schema():
     config = AbstractDestinationConfig(
         name="file",
+        alias="file",
         config=AbstractDestinationDetailsConfig(
             unnest=True,
             record_schemas=[
