@@ -107,6 +107,13 @@ class KafkaSource(AbstractSource):
 
         config_topics = [topic.name for topic in self.config.topics]
 
+        # Display consumer config
+        # We ignore the key sasl.password and sasl.username
+        consumer_config = self.config.consumer_config.copy()
+        consumer_config.pop("sasl.password", None)
+        consumer_config.pop("sasl.username", None)
+        logger.info(f"Consumer config: {consumer_config}")
+
         for topic in config_topics:
             if topic not in topics:
                 logger.error(f"Topic {topic} not found, available topics: {topics.keys()}")
