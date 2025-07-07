@@ -246,8 +246,8 @@ class KafkaSource(AbstractSource):
                 if message.error().code() == KafkaError.MSG_SIZE_TOO_LARGE:
                     logger.error(
                         (
-                            f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} has been skipped. "
-                            f"Raised MSG_SIZE_TOO_LARGE, we suppose the message does not exist. Double-check in Confluent Cloud."
+                            f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} is too large. "
+                            f"Raised MSG_SIZE_TOO_LARGE, if manually setting the offset, the message might not exist. Double-check in Confluent Cloud."
                         )
                     )
 
