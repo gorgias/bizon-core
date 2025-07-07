@@ -58,7 +58,7 @@ class DatadogMonitor(AbstractMonitor):
 
     def track_records_synced(
         self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}, headers: List[Dict[str, str]] = []
-    ) -> Union[Dict[str, str], None]:
+    ) -> Union[List[Dict[str, str]], None]:
         """
         Track the number of records synced in the pipeline.
 
@@ -79,7 +79,7 @@ class DatadogMonitor(AbstractMonitor):
                 set_produce_checkpoint(destination_type, destination_id, header.setdefault)
             return headers
 
-    def track_source_iteration(self, records: List[SourceRecord]) -> Union[Dict[str, str], None]:
+    def track_source_iteration(self, records: List[SourceRecord]) -> Union[List[Dict[str, str]], None]:
         """
         Track the number of records consumed from a Kafka topic.
 
