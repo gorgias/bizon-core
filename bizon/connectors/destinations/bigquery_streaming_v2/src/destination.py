@@ -21,7 +21,7 @@ from google.cloud.bigquery_storage_v1.types import (
     ProtoRows,
     ProtoSchema,
 )
-from google.protobuf.json_format import ParseDict
+from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message
 from loguru import logger
 from requests.exceptions import ConnectionError, SSLError, Timeout
@@ -44,9 +44,9 @@ from .proto_utils import get_proto_schema_and_class
 class BigQueryStreamingV2Destination(AbstractDestination):
 
     # Add constants for limits
-    MAX_ROWS_PER_REQUEST = 5000  # 5000 (max is 10000)
-    MAX_REQUEST_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB (max is 10MB)
-    MAX_ROW_SIZE_BYTES = 0.9 * 1024 * 1024  # 1 MB
+    MAX_ROWS_PER_REQUEST = 6000  # 8000 (max is 10000)
+    MAX_REQUEST_SIZE_BYTES = 8 * 1024 * 1024  # 8 MB (max is 10MB)
+    MAX_ROW_SIZE_BYTES = 3 * 1024 * 1024  # 3 MB (max is 10MB)
 
     def __init__(
         self,
@@ -154,56 +154,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         response = write_client.append_rows(iter([request]))
         return response.code().name
 
-    @retry(
-        retry=retry_if_exception_type(
-            (
-                ServerError,
-                ServiceUnavailable,
-                SSLError,
-                ConnectionError,
-                Timeout,
-                RetryError,
-                urllib3.exceptions.ProtocolError,
-                urllib3.exceptions.SSLError,
-            )
-        ),
-        wait=wait_exponential(multiplier=2, min=4, max=120),
-        stop=stop_after_attempt(8),
-        before_sleep=lambda retry_state: logger.warning(
-            f"Attempt {retry_state.attempt_number} failed. Retrying in {retry_state.next_action.sleep} seconds..."
-        ),
-    )
-    def process_streaming_batch(
-        self,
-        write_client: bigquery_storage_v1.BigQueryWriteClient,
-        stream_name: str,
-        proto_schema: ProtoSchema,
-        batch: dict,
-    ) -> Tuple[str, str]:
-        """Process a single batch for streaming or large rows with retry logic."""
-        try:
-            if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
-                result = self.append_rows_to_stream(write_client, stream_name, proto_schema, batch["stream_batch"])
-                return "streaming", result
-            elif batch.get("json_batch") and len(batch["json_batch"]) > 0:
-                # For large rows, we need to use the main client
-                job_config = bigquery.LoadJobConfig(
-                    source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-                    schema=self.bq_client.get_table(self.table_id).schema,
-                    ignore_unknown_values=True,
-                )
-                load_job = self.bq_client.load_table_from_json(
-                    batch["json_batch"], self.table_id, job_config=job_config, timeout=300
-                )
-                result = load_job.result()
-                if load_job.state != "DONE":
-                    raise Exception(f"Failed to load rows to BigQuery: {load_job.errors}")
-                return "large_rows", "DONE"
-            return "empty", "SKIPPED"
-        except Exception as e:
-            logger.error(f"Error processing batch: {str(e)}")
-            raise
-
     def safe_cast_record_values(self, row: dict):
         """
         Safe cast record values to the correct type for BigQuery.
@@ -240,6 +190,81 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         """Convert a row to a Protobuf serialization."""
         record = ParseDict(row, TableRowClass())
         return record.SerializeToString()
+
+    @staticmethod
+    def from_protobuf_serialization(
+        TableRowClass: Type[Message],
+        serialized_data: bytes,
+    ) -> dict:
+        """Convert protobuf serialization back to a dictionary."""
+        record = TableRowClass()
+        record.ParseFromString(serialized_data)
+        return MessageToDict(record, preserving_proto_field_name=True)
+
+    @retry(
+        retry=retry_if_exception_type(
+            (
+                ServerError,
+                ServiceUnavailable,
+                SSLError,
+                ConnectionError,
+                Timeout,
+                RetryError,
+                urllib3.exceptions.ProtocolError,
+                urllib3.exceptions.SSLError,
+            )
+        ),
+        wait=wait_exponential(multiplier=2, min=4, max=120),
+        stop=stop_after_attempt(8),
+        before_sleep=lambda retry_state: logger.warning(
+            f"Attempt {retry_state.attempt_number} failed. Retrying in {retry_state.next_action.sleep} seconds..."
+        ),
+    )
+    def process_streaming_batch(
+        self,
+        write_client: bigquery_storage_v1.BigQueryWriteClient,
+        stream_name: str,
+        proto_schema: ProtoSchema,
+        batch: dict,
+        table_row_class: Type[Message],
+    ) -> List[Tuple[str, str]]:
+        """Process a single batch for streaming and/or large rows with retry logic."""
+        results = []
+        try:
+            # Handle streaming batch
+            if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
+                result = self.append_rows_to_stream(write_client, stream_name, proto_schema, batch["stream_batch"])
+                results.append(("streaming", result))
+
+            # Handle large rows batch
+            if batch.get("json_batch") and len(batch["json_batch"]) > 0:
+                # Deserialize protobuf bytes back to JSON for the load job
+                deserialized_rows = []
+                for serialized_row in batch["json_batch"]:
+                    deserialized_row = self.from_protobuf_serialization(table_row_class, serialized_row)
+                    deserialized_rows.append(deserialized_row)
+
+                # For large rows, we need to use the main client
+                job_config = bigquery.LoadJobConfig(
+                    source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                    schema=self.bq_client.get_table(self.table_id).schema,
+                    ignore_unknown_values=True,
+                )
+                load_job = self.bq_client.load_table_from_json(
+                    deserialized_rows, self.table_id, job_config=job_config, timeout=300
+                )
+                result = load_job.result()
+                if load_job.state != "DONE":
+                    raise Exception(f"Failed to load rows to BigQuery: {load_job.errors}")
+                results.append(("large_rows", "DONE"))
+
+            if not results:
+                results.append(("empty", "SKIPPED"))
+
+            return results
+        except Exception as e:
+            logger.error(f"Error processing batch: {str(e)}")
+            raise
 
     def load_to_bigquery_via_streaming(self, df_destination_records: pl.DataFrame) -> str:
 
@@ -327,17 +352,20 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit all batch processing tasks
                 future_to_batch = {
-                    executor.submit(self.process_streaming_batch, write_client, stream_name, proto_schema, batch): batch
+                    executor.submit(
+                        self.process_streaming_batch, write_client, stream_name, proto_schema, batch, TableRow
+                    ): batch
                     for batch in batches
                 }
 
                 # Collect results as they complete
                 for future in as_completed(future_to_batch):
-                    batch_type, result = future.result()
-                    if batch_type == "streaming":
-                        streaming_results.append(result)
-                    if batch_type == "large_rows":
-                        large_rows_results.append(result)
+                    batch_results = future.result()
+                    for batch_type, result in batch_results:
+                        if batch_type == "streaming":
+                            streaming_results.append(result)
+                        if batch_type == "large_rows":
+                            large_rows_results.append(result)
 
         except Exception as e:
             logger.error(f"Error in multithreaded batch processing: {str(e)}, type: {type(e)}")
@@ -379,15 +407,16 @@ class BigQueryStreamingV2Destination(AbstractDestination):
 
             if item_size > self.MAX_ROW_SIZE_BYTES:
                 large_rows.append(item)
-                logger.debug(f"Large row detected: {item_size} bytes")
+                logger.warning(f"Large row detected: {item_size} bytes")
             else:
                 current_batch.append(item)
                 current_batch_size += item_size
 
         # Yield the last batch
         if current_batch:
-            logger.debug(
+            logger.info(
                 f"Yielding streaming batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB"
             )
-            logger.debug(f"Yielding large rows batch of {len(large_rows)} rows")
+            if large_rows:
+                logger.warning(f"Yielding large rows batch of {len(large_rows)} rows")
             yield {"stream_batch": current_batch, "json_batch": large_rows}
