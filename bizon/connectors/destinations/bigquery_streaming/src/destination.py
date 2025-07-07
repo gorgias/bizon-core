@@ -222,7 +222,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         try:
             # Handle streaming batch
             if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
-                return self.bq_client.insert_rows_json(
+                self.bq_client.insert_rows_json(
                     table,
                     batch["stream_batch"],
                     row_ids=[None] * len(batch["stream_batch"]),
