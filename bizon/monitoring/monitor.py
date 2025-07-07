@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from bizon.common.models import BizonConfig
 from bizon.engine.pipeline.models import PipelineReturnStatus
@@ -22,7 +22,7 @@ class AbstractMonitor(ABC):
         """
         pass
 
-    def track_source_iteration(self, record: SourceRecord, headers: Dict[str, str] = {}) -> None:
+    def track_source_iteration(self, records: List[SourceRecord], headers: Dict[str, str] = {}) -> None:
         """
         Run a process that tracks the source iteration.
         """
