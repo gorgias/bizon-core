@@ -107,6 +107,13 @@ class KafkaSource(AbstractSource):
 
         config_topics = [topic.name for topic in self.config.topics]
 
+        # Display consumer config
+        # We ignore the key sasl.password and sasl.username
+        consumer_config = self.config.consumer_config.copy()
+        consumer_config.pop("sasl.password", None)
+        consumer_config.pop("sasl.username", None)
+        logger.info(f"Consumer config: {consumer_config}")
+
         for topic in config_topics:
             if topic not in topics:
                 logger.error(f"Topic {topic} not found, available topics: {topics.keys()}")
@@ -237,13 +244,12 @@ class KafkaSource(AbstractSource):
             if message.error():
                 # If the message is too large, we skip it and update the offset
                 if message.error().code() == KafkaError.MSG_SIZE_TOO_LARGE:
-                    logger.warning(
+                    logger.error(
                         (
-                            f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} has been skipped. "
-                            f"Raised MSG_SIZE_TOO_LARGE, we suppose the message does not exist. Double-check in Confluent Cloud."
+                            f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} is too large. "
+                            f"Raised MSG_SIZE_TOO_LARGE, if manually setting the offset, the message might not exist. Double-check in Confluent Cloud."
                         )
                     )
-                    continue
 
                 logger.error(
                     (
