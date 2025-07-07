@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 from datadog import initialize, statsd
 from loguru import logger
@@ -57,7 +57,7 @@ class DatadogMonitor(AbstractMonitor):
         )
 
     def track_records_synced(
-        self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}, headers: Dict[str, str] = {}
+        self, num_records: int, destination_id: str, extra_tags: Dict[str, str] = {}, headers: List[Dict[str, str]] = []
     ) -> Union[Dict[str, str], None]:
         """
         Track the number of records synced in the pipeline.
@@ -75,10 +75,11 @@ class DatadogMonitor(AbstractMonitor):
 
             destination_type = self.pipeline_config.destination.alias
 
-            set_produce_checkpoint(destination_type, destination_id, headers.setdefault)
+            for header in headers:
+                set_produce_checkpoint(destination_type, destination_id, header.setdefault)
             return headers
 
-    def track_source_iteration(self, record: SourceRecord) -> Union[Dict[str, str], None]:
+    def track_source_iteration(self, records: List[SourceRecord]) -> Union[Dict[str, str], None]:
         """
         Track the number of records consumed from a Kafka topic.
 
@@ -89,6 +90,9 @@ class DatadogMonitor(AbstractMonitor):
         if os.getenv("DD_DATA_STREAMS_ENABLED") == "true":
             from ddtrace.data_streams import set_consume_checkpoint
 
-            headers = {}
-            set_consume_checkpoint("kafka", record.data["topic"], headers.get)
-            return headers
+            headers_list = []
+            for record in records:
+                headers = {}
+                set_consume_checkpoint("kafka", record.data["topic"], headers.get)
+                headers_list.append(headers)
+            return headers_list
