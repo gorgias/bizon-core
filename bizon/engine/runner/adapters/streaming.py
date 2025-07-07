@@ -78,7 +78,7 @@ class StreamingRunner(AbstractRunner):
                 df_source_records = StreamingRunner.convert_source_records(records)
 
                 dsm_headers = monitor.track_source_iteration(records=records)
-                logger.info(f"DSM headers: {dsm_headers[0]}")
+                logger.info(f"DSM headers: {dsm_headers[0] if dsm_headers else None}")
 
                 # Apply transformation
                 df_source_records = transform.apply_transforms(df_source_records=df_source_records)
@@ -99,7 +99,7 @@ class StreamingRunner(AbstractRunner):
                     extra_tags={"destination_id": destination_id},
                     headers=dsm_headers,
                 )
-                logger.info(f"Last DSM headers: {last_dsm_headers[0]}")
+                logger.info(f"Last DSM headers: {last_dsm_headers[0] if last_dsm_headers else None}")
 
             if os.getenv("ENVIRONMENT") == "production":
                 source.commit()
