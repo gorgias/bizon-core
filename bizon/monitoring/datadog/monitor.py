@@ -131,7 +131,7 @@ class DatadogMonitor(AbstractMonitor):
                     if ":" in tag:
                         key, value = tag.split(":", 1)
                         span.set_tag(key, value)
-
+                span.set_tag("_sampling_priority_v1", 2)
                 yield span
         except ImportError:
             logger.warning("ddtrace not available, skipping tracing")
