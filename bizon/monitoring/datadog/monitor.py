@@ -80,6 +80,8 @@ class DatadogMonitor(AbstractMonitor):
             destination_type = self.pipeline_config.destination.alias
 
             for header in headers:
+                if "x-datadog-sampling-priority" in header:
+                    del header["x-datadog-sampling-priority"]
                 set_produce_checkpoint(destination_type, destination_id, header.setdefault)
             return headers
 
@@ -131,6 +133,7 @@ class DatadogMonitor(AbstractMonitor):
                     if ":" in tag:
                         key, value = tag.split(":", 1)
                         span.set_tag(key, value)
+                span.set_tag("_sampling_priority_v1", 2)
                 yield span
         except ImportError:
             logger.warning("ddtrace not available, skipping tracing")
