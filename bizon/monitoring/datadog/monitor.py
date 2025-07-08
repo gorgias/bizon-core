@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 from typing import Dict, List, Union
 
 from datadog import initialize, statsd
@@ -96,3 +97,40 @@ class DatadogMonitor(AbstractMonitor):
                 set_consume_checkpoint("kafka", record.data["topic"], headers.get)
                 headers_list.append(headers)
             return headers_list
+
+    @contextmanager
+    def trace(self, operation_name: str, resource: str = None, extra_tags: Dict[str, str] = None):
+        """
+        Create a trace span for monitoring using Datadog APM.
+
+        Args:
+            operation_name (str): The name of the operation being traced
+            resource (str): The resource being operated on (e.g., topic name, table name)
+            extra_tags (Dict[str, str]): Additional tags for the trace
+
+        Yields:
+            A span object that can be used to add additional metadata
+        """
+        try:
+            from ddtrace import tracer
+
+            # Combine tags
+            all_tags = self.tags.copy()
+            if extra_tags:
+                all_tags.extend([f"{key}:{value}" for key, value in extra_tags.items()])
+
+            # Create the span
+            with tracer.trace(operation_name, resource=resource, service="bizon") as span:
+                # Add tags to the span
+                for tag in all_tags:
+                    if ":" in tag:
+                        key, value = tag.split(":", 1)
+                        span.set_tag(key, value)
+
+                yield span
+        except ImportError:
+            logger.warning("ddtrace not available, skipping tracing")
+            yield None
+        except Exception as e:
+            logger.warning(f"Failed to create trace: {e}")
+            yield None
