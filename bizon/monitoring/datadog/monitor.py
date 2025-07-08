@@ -120,7 +120,7 @@ class DatadogMonitor(AbstractMonitor):
                 all_tags.extend([f"{key}:{value}" for key, value in extra_tags.items()])
 
             # Create the span
-            with tracer.trace(operation_name, resource=resource, service="bizon") as span:
+            with tracer.trace(operation_name, resource=resource) as span:
                 # Add tags to the span
                 for tag in all_tags:
                     if ":" in tag:
