@@ -57,25 +57,25 @@ class StreamingRunner(AbstractRunner):
                 logger.info(f"Max iterations {source.config.max_iterations} reached, terminating stream ...")
                 break
 
-            source_iteration = source.get()
+            with monitor.trace(operation_name="bizon.stream.iteration"):
+                source_iteration = source.get()
 
-            destination_id_indexed_records = {}
+                destination_id_indexed_records = {}
 
-            if len(source_iteration.records) == 0:
-                logger.info("No new records found, stopping iteration")
-                time.sleep(2)
-                monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
-                iteration += 1
-                continue
+                if len(source_iteration.records) == 0:
+                    logger.info("No new records found, stopping iteration")
+                    time.sleep(2)
+                    monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+                    iteration += 1
+                    continue
 
-            for record in source_iteration.records:
-                if destination_id_indexed_records.get(record.destination_id):
-                    destination_id_indexed_records[record.destination_id].append(record)
-                else:
-                    destination_id_indexed_records[record.destination_id] = [record]
+                for record in source_iteration.records:
+                    if destination_id_indexed_records.get(record.destination_id):
+                        destination_id_indexed_records[record.destination_id].append(record)
+                    else:
+                        destination_id_indexed_records[record.destination_id] = [record]
 
-            for destination_id, records in destination_id_indexed_records.items():
-                with monitor.trace(operation_name="bizon.topic.process", resource=destination_id):
+                for destination_id, records in destination_id_indexed_records.items():
                     df_source_records = StreamingRunner.convert_source_records(records)
 
                     dsm_headers = monitor.track_source_iteration(records=records)
@@ -102,10 +102,10 @@ class StreamingRunner(AbstractRunner):
                     )
                     logger.info(f"Last DSM headers: {last_dsm_headers[0] if last_dsm_headers else None}")
 
-            if os.getenv("ENVIRONMENT") == "production":
-                source.commit()
+                if os.getenv("ENVIRONMENT") == "production":
+                    source.commit()
 
-            iteration += 1
+                iteration += 1
 
-            monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+                monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
         return RunnerStatus(stream=PipelineReturnStatus.SUCCESS)  # return when max iterations is reached
