@@ -93,7 +93,7 @@ class DatadogMonitor(AbstractMonitor):
 
             headers_list = []
             for record in records:
-                headers = {}
+                headers = record.data.get("headers", {})
                 set_consume_checkpoint("kafka", record.data["topic"], headers.get)
                 headers_list.append(headers)
             return headers_list
