@@ -263,16 +263,16 @@ class AbstractRunner(ABC):
         # Get the backend instance
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
+        # Get the monitor instance
+        monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
+
         # Get the destination instance
         destination = AbstractRunner.get_destination(
-            bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback
+            bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback, monitor=monitor
         )
 
         # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
-
-        # Get the monitor instance
-        monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
 
         # Create the consumer instance
         consumer = queue.get_consumer(
