@@ -8,7 +8,7 @@ import simplejson as json
 from loguru import logger
 from pytz import UTC
 
-from bizon.common.models import BizonConfig
+from bizon.common.models import BizonConfig, SyncMetadata
 from bizon.destination.models import transform_to_df_destination_records
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.engine.runner.config import RunnerStatus
@@ -40,14 +40,20 @@ class StreamingRunner(AbstractRunner):
         job = self.init_job(bizon_config=self.bizon_config, config=self.config)
         backend = self.get_backend(bizon_config=self.bizon_config)
         source = self.get_source(bizon_config=self.bizon_config, config=self.config)
+
+        sync_metadata = SyncMetadata.from_bizon_config(job_id=job.id, config=self.bizon_config)
+        monitor = self.get_monitoring_client(sync_metadata=sync_metadata, bizon_config=self.bizon_config)
+
         destination = self.get_destination(
             bizon_config=self.bizon_config,
             backend=backend,
             job_id=job.id,
             source_callback=None,
+            monitor=monitor,
         )
+
         transform = self.get_transform(bizon_config=self.bizon_config)
-        monitor = self.get_monitoring_client(bizon_config=self.bizon_config)
+
         destination.buffer.buffer_size = 0  # force buffer to be flushed immediately
         iteration = 0
 
@@ -108,4 +114,5 @@ class StreamingRunner(AbstractRunner):
                 iteration += 1
 
                 monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+
         return RunnerStatus(stream=PipelineReturnStatus.SUCCESS)  # return when max iterations is reached
