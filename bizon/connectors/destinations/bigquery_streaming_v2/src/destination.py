@@ -35,6 +35,7 @@ from tenacity import (
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.callback import AbstractSourceCallback
 
 from .config import BigQueryStreamingV2ConfigDetails
@@ -54,8 +55,9 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         config: BigQueryStreamingV2ConfigDetails,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ):  # type: ignore
-        super().__init__(sync_metadata, config, backend, source_callback)
+        super().__init__(sync_metadata, config, backend, source_callback, monitor)
         self.config: BigQueryStreamingV2ConfigDetails = config
 
         if config.authentication and config.authentication.service_account_key:
@@ -256,6 +258,12 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                 result = load_job.result()
                 if load_job.state != "DONE":
                     raise Exception(f"Failed to load rows to BigQuery: {load_job.errors}")
+
+                # Track large rows
+                self.monitor.track_large_records_synced(
+                    num_records=len(batch["json_batch"]), extra_tags={"destination_id": self.destination_id}
+                )
+
                 results.append(("large_rows", "DONE"))
 
             if not results:

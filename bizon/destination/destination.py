@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from bizon.common.models import SyncMetadata
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.engine.backend.models import JobStatus
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.callback import AbstractSourceCallback
 from bizon.source.config import SourceSyncModes
 
@@ -50,6 +51,7 @@ class AbstractDestination(ABC):
         config: AbstractDestinationDetailsConfig,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ):
         self.sync_metadata = sync_metadata
         self.config = config
@@ -284,6 +286,7 @@ class DestinationFactory:
         config: AbstractDestinationConfig,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ) -> AbstractDestination:
 
         if config.name == DestinationTypes.LOGGER:
@@ -292,7 +295,11 @@ class DestinationFactory:
             )
 
             return LoggerDestination(
-                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+                sync_metadata=sync_metadata,
+                config=config.config,
+                backend=backend,
+                source_callback=source_callback,
+                monitor=monitor,
             )
 
         elif config.name == DestinationTypes.BIGQUERY:
@@ -301,7 +308,11 @@ class DestinationFactory:
             )
 
             return BigQueryDestination(
-                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+                sync_metadata=sync_metadata,
+                config=config.config,
+                backend=backend,
+                source_callback=source_callback,
+                monitor=monitor,
             )
 
         elif config.name == DestinationTypes.BIGQUERY_STREAMING:
@@ -310,7 +321,11 @@ class DestinationFactory:
             )
 
             return BigQueryStreamingDestination(
-                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+                sync_metadata=sync_metadata,
+                config=config.config,
+                backend=backend,
+                source_callback=source_callback,
+                monitor=monitor,
             )
 
         elif config.name == DestinationTypes.BIGQUERY_STREAMING_V2:
@@ -319,7 +334,11 @@ class DestinationFactory:
             )
 
             return BigQueryStreamingV2Destination(
-                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+                sync_metadata=sync_metadata,
+                config=config.config,
+                backend=backend,
+                source_callback=source_callback,
+                monitor=monitor,
             )
 
         elif config.name == DestinationTypes.FILE:
@@ -328,7 +347,11 @@ class DestinationFactory:
             )
 
             return FileDestination(
-                sync_metadata=sync_metadata, config=config.config, backend=backend, source_callback=source_callback
+                sync_metadata=sync_metadata,
+                config=config.config,
+                backend=backend,
+                source_callback=source_callback,
+                monitor=monitor,
             )
 
         raise ValueError(f"Destination {config.name}" f"with params {config} not found")
