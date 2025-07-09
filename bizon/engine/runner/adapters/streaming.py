@@ -63,55 +63,56 @@ class StreamingRunner(AbstractRunner):
                 logger.info(f"Max iterations {source.config.max_iterations} reached, terminating stream ...")
                 break
 
-            source_iteration = source.get()
+            with monitor.trace(operation_name="bizon.stream.iteration"):
+                source_iteration = source.get()
 
-            destination_id_indexed_records = {}
+                destination_id_indexed_records = {}
 
-            if len(source_iteration.records) == 0:
-                logger.info("No new records found, stopping iteration")
-                time.sleep(2)
-                monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+                if len(source_iteration.records) == 0:
+                    logger.info("No new records found, stopping iteration")
+                    time.sleep(2)
+                    monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+                    iteration += 1
+                    continue
+
+                for record in source_iteration.records:
+                    if destination_id_indexed_records.get(record.destination_id):
+                        destination_id_indexed_records[record.destination_id].append(record)
+                    else:
+                        destination_id_indexed_records[record.destination_id] = [record]
+
+                for destination_id, records in destination_id_indexed_records.items():
+                    df_source_records = StreamingRunner.convert_source_records(records)
+
+                    dsm_headers = monitor.track_source_iteration(records=records)
+                    logger.info(f"DSM headers: {dsm_headers[0] if dsm_headers else None}")
+
+                    # Apply transformation
+                    df_source_records = transform.apply_transforms(df_source_records=df_source_records)
+
+                    df_destination_records = StreamingRunner.convert_to_destination_records(
+                        df_source_records, datetime.now(tz=UTC)
+                    )
+                    # Override destination_id
+                    destination.destination_id = destination_id
+                    destination.write_or_buffer_records(
+                        df_destination_records=df_destination_records,
+                        iteration=iteration,
+                        pagination=None,
+                    )
+                    last_dsm_headers = monitor.track_records_synced(
+                        num_records=len(df_destination_records),
+                        destination_id=destination_id,
+                        extra_tags={"destination_id": destination_id},
+                        headers=dsm_headers,
+                    )
+                    logger.info(f"Last DSM headers: {last_dsm_headers[0] if last_dsm_headers else None}")
+
+                if os.getenv("ENVIRONMENT") == "production":
+                    source.commit()
+
                 iteration += 1
-                continue
 
-            for record in source_iteration.records:
-                if destination_id_indexed_records.get(record.destination_id):
-                    destination_id_indexed_records[record.destination_id].append(record)
-                else:
-                    destination_id_indexed_records[record.destination_id] = [record]
-
-            for destination_id, records in destination_id_indexed_records.items():
-                df_source_records = StreamingRunner.convert_source_records(records)
-
-                dsm_headers = monitor.track_source_iteration(records=records)
-                logger.info(f"DSM headers: {dsm_headers[0] if dsm_headers else None}")
-
-                # Apply transformation
-                df_source_records = transform.apply_transforms(df_source_records=df_source_records)
-
-                df_destination_records = StreamingRunner.convert_to_destination_records(
-                    df_source_records, datetime.now(tz=UTC)
-                )
-                # Override destination_id
-                destination.destination_id = destination_id
-                destination.write_or_buffer_records(
-                    df_destination_records=df_destination_records,
-                    iteration=iteration,
-                    pagination=None,
-                )
-                last_dsm_headers = monitor.track_records_synced(
-                    num_records=len(df_destination_records),
-                    destination_id=destination_id,
-                    extra_tags={"destination_id": destination_id},
-                    headers=dsm_headers,
-                )
-                logger.info(f"Last DSM headers: {last_dsm_headers[0] if last_dsm_headers else None}")
-
-            if os.getenv("ENVIRONMENT") == "production":
-                source.commit()
-
-            iteration += 1
-
-            monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
+                monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
 
         return RunnerStatus(stream=PipelineReturnStatus.SUCCESS)  # return when max iterations is reached

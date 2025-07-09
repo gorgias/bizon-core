@@ -8,7 +8,11 @@ class MonitorType(str, Enum):
     DATADOG = "datadog"
 
 
-class DatadogConfig(BaseModel):
+class BaseMonitoringConfig(BaseModel):
+    enable_tracing: bool = Field(default=False, description="Enable tracing for the monitor")
+
+
+class DatadogConfig(BaseMonitoringConfig):
     datadog_agent_host: Optional[str] = None
     datadog_host_env_var: Optional[str] = None
     datadog_agent_port: int = 8125
@@ -24,6 +28,6 @@ class DatadogConfig(BaseModel):
             raise ValueError("Either datadog_agent_host or datadog_host_env_var must be specified")
 
 
-class MonitoringConfig(BaseModel):
+class MonitoringConfig(BaseMonitoringConfig):
     type: MonitorType
     config: Optional[DatadogConfig] = None
