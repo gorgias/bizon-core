@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Union
+from typing import Callable, Dict, List, Union
 
 from bizon.common.models import SyncMetadata
 from bizon.engine.pipeline.models import PipelineReturnStatus
@@ -33,6 +33,20 @@ class AbstractMonitor(ABC):
     ) -> None:
         """
         Track the number of records synced in the pipeline.
+        """
+        pass
+
+    def trace(self, operation_name: str, resource: str = None, extra_tags: Dict[str, str] = None):
+        """
+        Create a trace span for monitoring.
+
+        Args:
+            operation_name (str): The name of the operation being traced
+            resource (str): The resource being operated on (e.g., topic name, table name)
+            extra_tags (Dict[str, str]): Additional tags for the trace
+
+        Returns:
+            A context manager that can be used with 'with' statement
         """
         pass
 
