@@ -36,6 +36,7 @@ from bizon.connectors.destinations.bigquery.src.config import (
 )
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.callback import AbstractSourceCallback
 
 from .config import BigQueryStreamingConfigDetails
@@ -54,8 +55,9 @@ class BigQueryStreamingDestination(AbstractDestination):
         config: BigQueryStreamingConfigDetails,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ):  # type: ignore
-        super().__init__(sync_metadata, config, backend, source_callback)
+        super().__init__(sync_metadata, config, backend, source_callback, monitor)
         self.config: BigQueryStreamingConfigDetails = config
 
         if config.authentication and config.authentication.service_account_key:
@@ -244,6 +246,10 @@ class BigQueryStreamingDestination(AbstractDestination):
 
                 if load_job.state != "DONE":
                     raise Exception(f"Failed to load rows to BigQuery: {load_job.errors}")
+
+                self.monitor.track_large_records_synced(
+                    num_records=len(batch["json_batch"]), extra_tags={"destination_id": self.destination_id}
+                )
 
         except Exception as e:
             logger.error(f"Error inserting batch: {str(e)}, type: {type(e)}")

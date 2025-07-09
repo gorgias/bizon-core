@@ -18,6 +18,7 @@ from bizon.engine.backend.models import JobStatus
 from bizon.engine.engine import RunnerFactory
 from bizon.engine.runner.adapters.thread import ThreadRunner
 from bizon.engine.runner.runner import AbstractRunner
+from bizon.monitoring.noop.monitor import NoOpMonitor
 from bizon.source.callback import NoOpSourceCallback
 
 temporary_file = NamedTemporaryFile()
@@ -66,15 +67,17 @@ def file_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
         session=sqlite_db_session,
     )
 
+    sync_metadata = SyncMetadata(
+        job_id=job.id,
+        name="job_test",
+        source_name="dummy",
+        stream_name="test",
+        destination_name="logger",
+        sync_mode="full_refresh",
+    )
+
     return FileDestination(
-        sync_metadata=SyncMetadata(
-            job_id=job.id,
-            name="job_test",
-            source_name="dummy",
-            stream_name="test",
-            destination_name="logger",
-            sync_mode="full_refresh",
-        ),
+        sync_metadata=sync_metadata,
         config=FileDestinationDetailsConfig(
             format=FileFormat.JSON,
             destination_id=temporary_file.name,
@@ -83,6 +86,7 @@ def file_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
         ),
         backend=my_sqlite_backend,
         source_callback=NoOpSourceCallback(config={}),
+        monitor=NoOpMonitor(sync_metadata=sync_metadata, monitoring_config=None),
     )
 
 
