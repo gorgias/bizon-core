@@ -129,9 +129,9 @@ class AbstractRunner(ABC):
         return Transform(transforms=bizon_config.transforms)
 
     @staticmethod
-    def get_monitoring_client(bizon_config: BizonConfig) -> AbstractMonitor:
+    def get_monitoring_client(sync_metadata: SyncMetadata, bizon_config: BizonConfig) -> AbstractMonitor:
         """Return the monitoring client instance"""
-        return MonitorFactory.get_monitor(bizon_config)
+        return MonitorFactory.get_monitor(sync_metadata, bizon_config.monitoring)
 
     @staticmethod
     def get_or_create_job(
@@ -257,6 +257,8 @@ class AbstractRunner(ABC):
             bizon_config=bizon_config, config=config
         ).get_source_callback_instance()
 
+        sync_metadata = SyncMetadata.from_bizon_config(job_id=job_id, config=bizon_config)
+
         # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
 
@@ -264,7 +266,7 @@ class AbstractRunner(ABC):
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
         # Get the monitor instance
-        monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
+        monitor = AbstractRunner.get_monitoring_client(sync_metadata=sync_metadata, bizon_config=bizon_config)
 
         # Get the destination instance
         destination = AbstractRunner.get_destination(
