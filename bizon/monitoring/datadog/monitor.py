@@ -74,10 +74,7 @@ class DatadogMonitor(AbstractMonitor):
             tags=self.tags + [f"{key}:{value}" for key, value in extra_tags.items()],
         )
         if os.getenv("DD_DATA_STREAMS_ENABLED") == "true":
-            from ddtrace import tracer
             from ddtrace.data_streams import set_produce_checkpoint
-
-            logger.info(f"Current span in track_consume: {tracer.current_span()}")
 
             destination_type = self.sync_metadata.destination_alias
 
@@ -105,10 +102,8 @@ class DatadogMonitor(AbstractMonitor):
         """
 
         if os.getenv("DD_DATA_STREAMS_ENABLED") == "true":
-            from ddtrace import tracer
             from ddtrace.data_streams import set_consume_checkpoint
 
-            logger.info(f"Current span in track_consume: {tracer.current_span()}")
             headers_list = []
             for record in records:
                 headers = record.data.get("headers", {})
