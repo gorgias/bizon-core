@@ -75,6 +75,7 @@ class SyncMetadata(BaseModel):
     stream_name: str
     sync_mode: SourceSyncModes
     destination_name: str
+    destination_alias: str
 
     @classmethod
     def from_bizon_config(cls, job_id: str, config: BizonConfig) -> "SyncMetadata":
@@ -85,4 +86,5 @@ class SyncMetadata(BaseModel):
             stream_name=config.source.stream,
             sync_mode=config.source.sync_mode,
             destination_name=config.destination.name,
+            destination_alias=config.destination.alias,
         )
