@@ -82,6 +82,8 @@ class DatadogMonitor(AbstractMonitor):
             for header in headers:
                 if "x-datadog-sampling-priority" in header:
                     del header["x-datadog-sampling-priority"]
+                if "dd-pathway-ctx-base64" in header:
+                    del header["dd-pathway-ctx-base64"]
                 set_produce_checkpoint(destination_type, destination_id, header.setdefault)
             return headers
 
