@@ -34,6 +34,7 @@ def logger_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
         source_name="dummy",
         stream_name="test",
         destination_name="logger",
+        destination_alias="logger",
         sync_mode="full_refresh",
     )
 

@@ -52,6 +52,7 @@ def sync_metadata() -> SyncMetadata:
         source_name="cookie",
         stream_name="test",
         destination_name="bigquery",
+        destination_alias="bigquery",
         sync_mode="full_refresh",
     )
 
