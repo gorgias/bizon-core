@@ -17,6 +17,7 @@ from bizon.connectors.destinations.bigquery_streaming.src.config import (
 from bizon.destination.config import DestinationTypes
 from bizon.destination.destination import DestinationFactory
 from bizon.destination.models import destination_record_schema
+from bizon.monitoring.noop.monitor import NoOpMonitor
 
 load_dotenv()
 
@@ -74,6 +75,7 @@ def test_streaming_records_to_bigquery(my_backend_config, sync_metadata_stream):
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Import here to not throw auth errors when running tests
@@ -109,6 +111,7 @@ def test_override_destination_id_streaming_records_to_bigquery(my_backend_config
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Import here to not throw auth errors when running tests
@@ -143,6 +146,7 @@ def test_streaming_large_records_to_bigquery(my_backend_config, sync_metadata_st
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Import here to not throw auth errors when running tests
@@ -204,7 +208,10 @@ def test_streaming_unnested_records(my_backend_config, sync_metadata_stream):
     )
 
     bq_destination = DestinationFactory().get_destination(
-        sync_metadata=sync_metadata_stream, config=bigquery_config, backend=my_backend_config
+        sync_metadata=sync_metadata_stream,
+        config=bigquery_config,
+        backend=my_backend_config,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Import here to not throw auth errors when running tests
@@ -271,7 +278,10 @@ def test_error_on_added_column(my_backend_config, sync_metadata_stream):
     )
 
     bq_destination = DestinationFactory().get_destination(
-        sync_metadata=sync_metadata_stream, config=bigquery_config, backend=my_backend_config
+        sync_metadata=sync_metadata_stream,
+        config=bigquery_config,
+        backend=my_backend_config,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Insert proper records
@@ -362,6 +372,7 @@ def test_enforce_record_schema_columns(my_backend_config, sync_metadata_stream):
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Insert proper records
@@ -428,6 +439,7 @@ def test_enforce_record_schema_columns(my_backend_config, sync_metadata_stream):
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
     new_column_in_record = {"id": 3, "name": "Charlie", "last_name": "Chaplin", "created_at": "2021-01-01 00:00:00"}
 
@@ -483,7 +495,10 @@ def test_error_on_deleted_column(my_backend_config, sync_metadata_stream):
     )
 
     bq_destination = DestinationFactory().get_destination(
-        sync_metadata=sync_metadata_stream, config=bigquery_config, backend=my_backend_config
+        sync_metadata=sync_metadata_stream,
+        config=bigquery_config,
+        backend=my_backend_config,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Insert proper records
@@ -564,6 +579,7 @@ def test_streaming_unnested_records_legacy(my_backend_config, sync_metadata_stre
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Import here to not throw auth errors when running tests
@@ -639,6 +655,7 @@ def test_streaming_unnested_records_legacy_clustering_keys(my_backend_config, sy
         config=bigquery_config,
         backend=my_backend_config,
         source_callback=None,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata_stream, monitoring_config=None),
     )
 
     # Import here to not throw auth errors when running tests

@@ -4,39 +4,40 @@ from typing import Dict, List, Union
 from datadog import initialize, statsd
 from loguru import logger
 
-from bizon.common.models import BizonConfig
+from bizon.common.models import SyncMetadata
 from bizon.engine.pipeline.models import PipelineReturnStatus
+from bizon.monitoring.config import MonitoringConfig
 from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.models import SourceRecord
 
 
 class DatadogMonitor(AbstractMonitor):
-    def __init__(self, pipeline_config: BizonConfig):
-        super().__init__(pipeline_config)
+    def __init__(self, sync_metadata: SyncMetadata, monitoring_config: MonitoringConfig):
+        super().__init__(sync_metadata)
 
         # In Kubernetes, set the host dynamically
         try:
-            datadog_host_from_env_var = os.getenv(pipeline_config.monitoring.config.datadog_host_env_var)
+            datadog_host_from_env_var = os.getenv(monitoring_config.config.datadog_host_env_var)
             if datadog_host_from_env_var:
                 initialize(
                     statsd_host=datadog_host_from_env_var,
-                    statsd_port=pipeline_config.monitoring.config.datadog_agent_port,
+                    statsd_port=monitoring_config.config.datadog_agent_port,
                 )
             else:
                 initialize(
-                    statsd_host=pipeline_config.monitoring.config.datadog_agent_host,
-                    statsd_port=pipeline_config.monitoring.config.datadog_agent_port,
+                    statsd_host=monitoring_config.config.datadog_agent_host,
+                    statsd_port=monitoring_config.config.datadog_agent_port,
                 )
         except Exception as e:
             logger.info(f"Failed to initialize Datadog agent: {e}")
 
         self.pipeline_monitor_status = "bizon_pipeline.status"
         self.tags = [
-            f"pipeline_name:{self.pipeline_config.name}",
-            f"pipeline_stream:{self.pipeline_config.source.stream}",
-            f"pipeline_source:{self.pipeline_config.source.name}",
-            f"pipeline_destination:{self.pipeline_config.destination.name}",
-        ] + [f"{key}:{value}" for key, value in self.pipeline_config.monitoring.config.tags.items()]
+            f"pipeline_name:{self.sync_metadata.name}",
+            f"pipeline_stream:{self.sync_metadata.stream_name}",
+            f"pipeline_source:{self.sync_metadata.source_name}",
+            f"pipeline_destination:{self.sync_metadata.destination_name}",
+        ] + [f"{key}:{value}" for key, value in self.monitoring_config.config.tags.items()]
 
         self.pipeline_active_pipelines = "bizon_pipeline.active_pipelines"
         self.pipeline_records_synced = "bizon_pipeline.records_synced"

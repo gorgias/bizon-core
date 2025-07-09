@@ -1,16 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Union
 
-from bizon.common.models import BizonConfig
+from bizon.common.models import SyncMetadata
 from bizon.engine.pipeline.models import PipelineReturnStatus
-from bizon.monitoring.config import MonitorType
+from bizon.monitoring.config import MonitoringConfig, MonitorType
 from bizon.source.models import SourceRecord
 
 
 class AbstractMonitor(ABC):
-    def __init__(self, pipeline_config: BizonConfig):
-        self.pipeline_config = pipeline_config
-        # Initialize the monitor
+    def __init__(self, sync_metadata: SyncMetadata, monitoring_config: MonitoringConfig):
+        self.sync_metadata = sync_metadata
+        self.monitoring_config = monitoring_config
 
     @abstractmethod
     def track_pipeline_status(self, pipeline_status: PipelineReturnStatus, extra_tags: Dict[str, str] = {}) -> None:
@@ -45,13 +45,13 @@ class AbstractMonitor(ABC):
 
 class MonitorFactory:
     @staticmethod
-    def get_monitor(pipeline_config: BizonConfig) -> AbstractMonitor:
-        if pipeline_config.monitoring is None:
+    def get_monitor(sync_metadata: SyncMetadata, monitoring_config: Union[MonitoringConfig, None]) -> AbstractMonitor:
+        if monitoring_config is None:
             from bizon.monitoring.noop.monitor import NoOpMonitor
 
-            return NoOpMonitor(pipeline_config)
+            return NoOpMonitor(sync_metadata, monitoring_config)
 
-        if pipeline_config.monitoring.type == MonitorType.DATADOG:
+        if monitoring_config.type == MonitorType.DATADOG:
             from bizon.monitoring.datadog.monitor import DatadogMonitor
 
-            return DatadogMonitor(pipeline_config)
+            return DatadogMonitor(sync_metadata, monitoring_config)
