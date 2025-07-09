@@ -10,6 +10,7 @@ from bizon.destination.destination import DestinationBufferStatus
 from bizon.destination.models import destination_record_schema
 from bizon.engine.backend.adapters.sqlalchemy.backend import SQLAlchemyBackend
 from bizon.engine.backend.models import JobStatus, StreamJob
+from bizon.monitoring.noop.monitor import NoOpMonitor
 from bizon.source.callback import NoOpSourceCallback
 
 
@@ -27,18 +28,21 @@ def logger_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
         session=sqlite_db_session,
     )
 
+    sync_metadata = SyncMetadata(
+        job_id=job.id,
+        name="job_test",
+        source_name="dummy",
+        stream_name="test",
+        destination_name="logger",
+        sync_mode="full_refresh",
+    )
+
     return LoggerDestination(
-        sync_metadata=SyncMetadata(
-            job_id=job.id,
-            name="job_test",
-            source_name="dummy",
-            stream_name="test",
-            destination_name="logger",
-            sync_mode="full_refresh",
-        ),
+        sync_metadata=sync_metadata,
         config=LoggerDestinationConfig(dummy="bizon"),
         backend=my_sqlite_backend,
         source_callback=NoOpSourceCallback(config={}),
+        monitor=NoOpMonitor(sync_metadata=sync_metadata, monitoring_config=None),
     )
 
 
