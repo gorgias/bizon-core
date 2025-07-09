@@ -58,7 +58,7 @@ def test_parse_task_runner_python_queue():
         job_id="123",
         source_callback=NoOpSourceCallback(config={}),
         monitor=NoOpMonitor(
-            sync_metadata=SyncMetadata.SyncMetadata.from_bizon_config(job_id="123", config=runner.bizon_config),
+            sync_metadata=SyncMetadata.from_bizon_config(job_id="123", config=runner.bizon_config),
             monitoring_config=None,
         ),
     )
