@@ -27,7 +27,13 @@ class DatadogConfig(BaseMonitoringConfig):
         if not self.host_is_configured:
             raise ValueError("Either datadog_agent_host or datadog_host_env_var must be specified")
 
+    class Config:
+        extra = "forbid"
+
 
 class MonitoringConfig(BaseMonitoringConfig):
     type: MonitorType
     config: Optional[DatadogConfig] = None
+
+    class Config:
+        extra = "forbid"

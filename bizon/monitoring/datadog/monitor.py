@@ -131,6 +131,7 @@ class DatadogMonitor(AbstractMonitor):
         """
         if not self.monitoring_config.config.enable_tracing:
             yield None
+            return
 
         try:
             from ddtrace import tracer
