@@ -40,6 +40,7 @@ class DatadogMonitor(AbstractMonitor):
 
         self.pipeline_active_pipelines = "bizon_pipeline.active_pipelines"
         self.pipeline_records_synced = "bizon_pipeline.records_synced"
+        self.pipeline_large_records = "bizon_pipeline.large_records"
 
     def track_pipeline_status(self, pipeline_status: PipelineReturnStatus, extra_tags: Dict[str, str] = {}) -> None:
         """
@@ -78,6 +79,13 @@ class DatadogMonitor(AbstractMonitor):
             for header in headers:
                 set_produce_checkpoint(destination_type, destination_id, header.setdefault)
             return headers
+
+    def track_large_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
+        statsd.increment(
+            self.pipeline_large_records,
+            value=num_records,
+            tags=self.tags + [f"{key}:{value}" for key, value in extra_tags.items()],
+        )
 
     def track_source_iteration(self, records: List[SourceRecord]) -> Union[List[Dict[str, str]], None]:
         """

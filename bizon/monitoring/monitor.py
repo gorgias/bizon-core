@@ -36,6 +36,12 @@ class AbstractMonitor(ABC):
         """
         pass
 
+    def track_large_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
+        """
+        Track the number of large records synced in the destination system. This aims at helping to identify the source of the large records.
+        """
+        pass
+
 
 class MonitorFactory:
     @staticmethod

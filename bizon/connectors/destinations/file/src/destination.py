@@ -19,8 +19,9 @@ class FileDestination(AbstractDestination):
         config: FileDestinationDetailsConfig,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ):
-        super().__init__(sync_metadata, config, backend, source_callback)
+        super().__init__(sync_metadata, config, backend, source_callback, monitor)
         self.config: FileDestinationDetailsConfig = config
 
     def check_connection(self) -> bool:
