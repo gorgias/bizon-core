@@ -57,7 +57,10 @@ def test_parse_task_runner_python_queue():
         backend=backend,
         job_id="123",
         source_callback=NoOpSourceCallback(config={}),
-        monitor=NoOpMonitor(sync_metadata=SyncMetadata.from_bizon_config(runner.bizon_config), monitoring_config=None),
+        monitor=NoOpMonitor(
+            sync_metadata=SyncMetadata.SyncMetadata.from_bizon_config(job_id="123", config=runner.bizon_config),
+            monitoring_config=None,
+        ),
     )
 
     assert isinstance(destination, LoggerDestination)
@@ -114,7 +117,10 @@ def test_parse_task_runner_kafka_queue():
         backend=backend,
         job_id="123",
         source_callback=NoOpSourceCallback(config={}),
-        monitor=NoOpMonitor(sync_metadata=SyncMetadata.from_bizon_config(runner.bizon_config), monitoring_config=None),
+        monitor=NoOpMonitor(
+            sync_metadata=SyncMetadata.from_bizon_config(job_id="123", config=runner.bizon_config),
+            monitoring_config=None,
+        ),
     )
 
     queue = runner.get_queue(bizon_config=runner.bizon_config)
@@ -177,7 +183,10 @@ def test_parse_task_runner_rabbitmq_queue():
         backend=backend,
         job_id="123",
         source_callback=NoOpSourceCallback(config={}),
-        monitor=NoOpMonitor(sync_metadata=SyncMetadata.from_bizon_config(runner.bizon_config), monitoring_config=None),
+        monitor=NoOpMonitor(
+            sync_metadata=SyncMetadata.from_bizon_config(job_id="123", config=runner.bizon_config),
+            monitoring_config=None,
+        ),
     )
 
     queue = runner.get_queue(bizon_config=runner.bizon_config)
