@@ -19,6 +19,7 @@ from bizon.connectors.destinations.bigquery.src.destination import BigQueryDesti
 from bizon.destination.config import DestinationTypes
 from bizon.destination.destination import DestinationFactory
 from bizon.destination.models import destination_record_schema
+from bizon.monitoring.noop.monitor import NoOpMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,10 @@ def test_load_records_to_bigquery(my_backend_config, test_table, sync_metadata):
     ]
 
     bq_destination = DestinationFactory().get_destination(
-        sync_metadata=sync_metadata, config=bigquery_config, backend=my_backend_config
+        sync_metadata=sync_metadata,
+        config=bigquery_config,
+        backend=my_backend_config,
+        monitor=NoOpMonitor(sync_metadata=sync_metadata, monitoring_config=None),
     )
 
     assert isinstance(bq_destination, BigQueryDestination)

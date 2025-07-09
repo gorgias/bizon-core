@@ -82,7 +82,11 @@ class AbstractRunner(ABC):
 
     @staticmethod
     def get_destination(
-        bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback
+        bizon_config: BizonConfig,
+        backend: AbstractBackend,
+        job_id: str,
+        source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ) -> AbstractDestination:
         """Get an instance of the destination based on the destination config dict"""
 
@@ -93,6 +97,7 @@ class AbstractRunner(ABC):
             config=bizon_config.destination,
             backend=backend,
             source_callback=source_callback,
+            monitor=monitor,
         )
 
     @staticmethod
@@ -124,9 +129,9 @@ class AbstractRunner(ABC):
         return Transform(transforms=bizon_config.transforms)
 
     @staticmethod
-    def get_monitoring_client(bizon_config: BizonConfig) -> AbstractMonitor:
+    def get_monitoring_client(sync_metadata: SyncMetadata, bizon_config: BizonConfig) -> AbstractMonitor:
         """Return the monitoring client instance"""
-        return MonitorFactory.get_monitor(bizon_config)
+        return MonitorFactory.get_monitor(sync_metadata, bizon_config.monitoring)
 
     @staticmethod
     def get_or_create_job(
@@ -252,22 +257,24 @@ class AbstractRunner(ABC):
             bizon_config=bizon_config, config=config
         ).get_source_callback_instance()
 
+        sync_metadata = SyncMetadata.from_bizon_config(job_id=job_id, config=bizon_config)
+
         # Get the queue instance
         queue = AbstractRunner.get_queue(bizon_config=bizon_config, **kwargs)
 
         # Get the backend instance
         backend = AbstractRunner.get_backend(bizon_config=bizon_config, **kwargs)
 
+        # Get the monitor instance
+        monitor = AbstractRunner.get_monitoring_client(sync_metadata=sync_metadata, bizon_config=bizon_config)
+
         # Get the destination instance
         destination = AbstractRunner.get_destination(
-            bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback
+            bizon_config=bizon_config, backend=backend, job_id=job_id, source_callback=source_callback, monitor=monitor
         )
 
         # Get the transform instance
         transform = AbstractRunner.get_transform(bizon_config=bizon_config)
-
-        # Get the monitor instance
-        monitor = AbstractRunner.get_monitoring_client(bizon_config=bizon_config)
 
         # Create the consumer instance
         consumer = queue.get_consumer(

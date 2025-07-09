@@ -14,6 +14,7 @@ from loguru import logger
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.config import SourceSyncModes
 from bizon.source.source import AbstractSourceCallback
 
@@ -28,8 +29,9 @@ class BigQueryDestination(AbstractDestination):
         config: BigQueryConfigDetails,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ):
-        super().__init__(sync_metadata, config, backend, source_callback)
+        super().__init__(sync_metadata, config, backend, source_callback, monitor)
         self.config: BigQueryConfigDetails = config
 
         if config.authentication and config.authentication.service_account_key:

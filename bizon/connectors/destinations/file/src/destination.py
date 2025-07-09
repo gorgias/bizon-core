@@ -6,6 +6,7 @@ import polars as pl
 from bizon.common.models import SyncMetadata
 from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
+from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.callback import AbstractSourceCallback
 
 from .config import FileDestinationDetailsConfig
@@ -19,8 +20,9 @@ class FileDestination(AbstractDestination):
         config: FileDestinationDetailsConfig,
         backend: AbstractBackend,
         source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ):
-        super().__init__(sync_metadata, config, backend, source_callback)
+        super().__init__(sync_metadata, config, backend, source_callback, monitor)
         self.config: FileDestinationDetailsConfig = config
 
     def check_connection(self) -> bool:
