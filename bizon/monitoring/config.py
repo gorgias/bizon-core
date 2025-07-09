@@ -34,3 +34,6 @@ class DatadogConfig(BaseMonitoringConfig):
 class MonitoringConfig(BaseMonitoringConfig):
     type: MonitorType
     config: Optional[DatadogConfig] = None
+
+    class Config:
+        extra = "forbid"
