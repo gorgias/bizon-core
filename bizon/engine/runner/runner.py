@@ -82,7 +82,11 @@ class AbstractRunner(ABC):
 
     @staticmethod
     def get_destination(
-        bizon_config: BizonConfig, backend: AbstractBackend, job_id: str, source_callback: AbstractSourceCallback
+        bizon_config: BizonConfig,
+        backend: AbstractBackend,
+        job_id: str,
+        source_callback: AbstractSourceCallback,
+        monitor: AbstractMonitor,
     ) -> AbstractDestination:
         """Get an instance of the destination based on the destination config dict"""
 
@@ -93,6 +97,7 @@ class AbstractRunner(ABC):
             config=bizon_config.destination,
             backend=backend,
             source_callback=source_callback,
+            monitor=monitor,
         )
 
     @staticmethod
