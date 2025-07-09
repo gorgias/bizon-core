@@ -79,7 +79,7 @@ class DatadogMonitor(AbstractMonitor):
 
             logger.info(f"Current span in track_consume: {tracer.current_span()}")
 
-            destination_type = self.pipeline_config.destination.alias
+            destination_type = self.sync_metadata.destination_alias
 
             for header in headers:
                 if "x-datadog-sampling-priority" in header:
