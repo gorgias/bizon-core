@@ -56,6 +56,7 @@ class AbstractDestination(ABC):
         self.sync_metadata = sync_metadata
         self.config = config
         self.backend = backend
+        self.monitor = monitor
         self.buffer = DestinationBuffer(
             buffer_size=self.config.buffer_size, buffer_flush_timeout=self.config.buffer_flush_timeout
         )
