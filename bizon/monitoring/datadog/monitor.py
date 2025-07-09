@@ -13,7 +13,7 @@ from bizon.source.models import SourceRecord
 
 class DatadogMonitor(AbstractMonitor):
     def __init__(self, sync_metadata: SyncMetadata, monitoring_config: MonitoringConfig):
-        super().__init__(sync_metadata)
+        super().__init__(sync_metadata, monitoring_config)
 
         # In Kubernetes, set the host dynamically
         try:
