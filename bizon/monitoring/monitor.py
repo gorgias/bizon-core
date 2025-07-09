@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Union
+from typing import Dict, List, Union
 
 from bizon.common.models import SyncMetadata
 from bizon.engine.pipeline.models import PipelineReturnStatus
