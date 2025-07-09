@@ -129,6 +129,9 @@ class DatadogMonitor(AbstractMonitor):
         Yields:
             A span object that can be used to add additional metadata
         """
+        if not self.monitoring_config.config.enable_tracing:
+            yield None
+
         try:
             from ddtrace import tracer
 

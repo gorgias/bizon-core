@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Union
 
-
 from bizon.common.models import SyncMetadata
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.monitoring.config import MonitoringConfig, MonitorType
@@ -48,11 +47,12 @@ class AbstractMonitor(ABC):
 
         Returns:
             A context manager that can be used with 'with' statement
+        """
+        pass
 
     def track_large_records_synced(self, num_records: int, extra_tags: Dict[str, str] = {}) -> None:
         """
         Track the number of large records synced in the destination system. This aims at helping to identify the source of the large records.
-
         """
         pass
 
