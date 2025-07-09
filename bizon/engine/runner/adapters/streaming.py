@@ -108,10 +108,9 @@ class StreamingRunner(AbstractRunner):
                     )
                     logger.info(f"Last DSM headers: {last_dsm_headers[0] if last_dsm_headers else None}")
 
-                # if os.getenv("ENVIRONMENT") == "production":
-                #     source.commit()
+                if os.getenv("ENVIRONMENT") == "production":
+                    source.commit()
 
-                source.commit()
                 iteration += 1
 
                 monitor.track_pipeline_status(PipelineReturnStatus.SUCCESS)
