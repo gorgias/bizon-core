@@ -352,7 +352,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         batches = list(self.batch(serialized_rows))
 
         # Use ThreadPoolExecutor for parallel processing
-        max_workers = min(len(batches), 10)  # Limit to 10 concurrent threads
+        max_workers = min(len(batches), self.config.max_concurrent_threads)
         logger.info(f"Processing {len(batches)} batches with {max_workers} concurrent threads")
 
         try:
