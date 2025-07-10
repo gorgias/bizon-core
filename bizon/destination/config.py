@@ -42,6 +42,11 @@ class AbstractDestinationDetailsConfig(BaseModel):
         description="Maximum time in seconds for buffering after which the records will be written to the destination. Set to 0 to deactivate the timeout buffer check.",  # noqa
     )
 
+    max_concurrent_threads: int = Field(
+        default=10,
+        description="Maximum number of concurrent threads to use for writing to the destination.",
+    )
+
     record_schemas: Optional[list[RecordSchemaConfig]] = Field(
         default=None, description="Schemas for the records. Required if unnest is set to true."
     )
