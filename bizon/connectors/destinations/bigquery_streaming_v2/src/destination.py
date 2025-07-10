@@ -45,7 +45,6 @@ from .proto_utils import get_proto_schema_and_class
 class BigQueryStreamingV2Destination(AbstractDestination):
 
     # Add constants for limits
-    MAX_ROWS_PER_REQUEST = 6000  # 8000 (max is 10000)
     MAX_REQUEST_SIZE_BYTES = 8 * 1024 * 1024  # 8 MB (max is 10MB)
     MAX_ROW_SIZE_BYTES = 3 * 1024 * 1024  # 3 MB (max is 10MB)
 
@@ -404,7 +403,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
 
             # If adding this item would exceed either limit, yield current batch and start new one
             if (
-                len(current_batch) >= self.MAX_ROWS_PER_REQUEST
+                len(current_batch) >= self.bq_max_rows_per_request
                 or current_batch_size + item_size > self.MAX_REQUEST_SIZE_BYTES
             ):
                 logger.debug(f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB")
