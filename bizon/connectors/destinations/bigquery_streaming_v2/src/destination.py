@@ -45,8 +45,8 @@ from .proto_utils import get_proto_schema_and_class
 class BigQueryStreamingV2Destination(AbstractDestination):
 
     # Add constants for limits
-    MAX_REQUEST_SIZE_BYTES = 8 * 1024 * 1024  # 8 MB (max is 10MB)
-    MAX_ROW_SIZE_BYTES = 3 * 1024 * 1024  # 3 MB (max is 10MB)
+    MAX_REQUEST_SIZE_BYTES = 9.5 * 1024 * 1024  # 9.5 MB (max is 10MB)
+    MAX_ROW_SIZE_BYTES = 8 * 1024 * 1024  # 8 MB (max is 10MB)
 
     def __init__(
         self,
