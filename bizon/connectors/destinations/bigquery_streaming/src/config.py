@@ -41,7 +41,11 @@ class BigQueryStreamingConfigDetails(AbstractDestinationDetailsConfig):
         description="BigQuery Time partitioning type",
     )
     authentication: Optional[BigQueryAuthentication] = None
-    bq_max_rows_per_request: Optional[int] = Field(30000, description="Max rows per buffer streaming request.")
+    bq_max_rows_per_request: Optional[int] = Field(
+        5000,
+        description="Max rows per buffer streaming request. Must not exceed 10000.",
+        le=10000,
+    )
     record_schemas: Optional[list[BigQueryRecordSchemaConfig]] = Field(
         default=None, description="Schema for the records. Required if unnest is set to true."
     )

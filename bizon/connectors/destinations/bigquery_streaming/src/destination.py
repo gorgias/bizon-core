@@ -45,7 +45,6 @@ from .config import BigQueryStreamingConfigDetails
 class BigQueryStreamingDestination(AbstractDestination):
 
     # Add constants for limits
-    MAX_ROWS_PER_REQUEST = 5000  # 5000 (max is 10000)
     MAX_REQUEST_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB (max is 10MB)
     MAX_ROW_SIZE_BYTES = 0.9 * 1024 * 1024  # 1 MB
 
@@ -353,7 +352,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
             # If adding this item would exceed either limit, yield current batch and start new one
             if (
-                len(current_batch) >= self.MAX_ROWS_PER_REQUEST
+                len(current_batch) >= self.bq_max_rows_per_request
                 or current_batch_size + item_size > self.MAX_REQUEST_SIZE_BYTES
             ):
                 logger.debug(f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB")
