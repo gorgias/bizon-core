@@ -22,7 +22,7 @@ from google.cloud.bigquery_storage_v1.types import (
     ProtoSchema,
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
-from google.protobuf.message import Message
+from google.protobuf.message import EncodeError, Message
 from loguru import logger
 from requests.exceptions import ConnectionError, SSLError, Timeout
 from tenacity import (
@@ -190,7 +190,13 @@ class BigQueryStreamingV2Destination(AbstractDestination):
     def to_protobuf_serialization(TableRowClass: Type[Message], row: dict) -> bytes:
         """Convert a row to a Protobuf serialization."""
         record = ParseDict(row, TableRowClass())
-        return record.SerializeToString()
+
+        try:
+            serialized_record = record.SerializeToString()
+        except EncodeError as e:
+            logger.error(f"Error serializing record: {e} for row: {row}.")
+            raise e
+        return serialized_record
 
     @staticmethod
     def from_protobuf_serialization(
