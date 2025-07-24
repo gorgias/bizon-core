@@ -1,5 +1,6 @@
 import pytest
 from google.cloud.bigquery import SchemaField
+from google.protobuf.json_format import ParseError
 from google.protobuf.message import EncodeError
 
 from bizon.connectors.destinations.bigquery_streaming_v2.src.destination import (
@@ -54,4 +55,23 @@ def test_to_protobuf_serialization_error_mismatch_schema():
     }
 
     with pytest.raises(EncodeError):
+        BigQueryStreamingV2Destination.to_protobuf_serialization(table_row_class, data)
+
+
+def test_to_protobuf_serialization_error_mismatch_schema_parse_error():
+    # Test to_protobuf_serialization
+    bq_schema = [
+        SchemaField(name="name", field_type="STRING", mode="REQUIRED"),
+        SchemaField(name="email", field_type="STRING", mode="REQUIRED"),
+    ]
+
+    proto_schema, table_row_class = get_proto_schema_and_class(bq_schema)
+
+    data = {
+        "not_in_schema": "John",
+        "name": "John",
+        "age": 30,
+    }
+
+    with pytest.raises(ParseError):
         BigQueryStreamingV2Destination.to_protobuf_serialization(table_row_class, data)
