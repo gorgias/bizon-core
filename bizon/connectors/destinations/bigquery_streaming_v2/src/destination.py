@@ -152,8 +152,13 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                 writer_schema=proto_schema,
             ),
         )
-        response = write_client.append_rows(iter([request]))
-        return response.code().name
+        try:
+            response = write_client.append_rows(iter([request]))
+            return response.code().name
+        except Exception as e:
+            logger.error(f"Error in append_rows_to_stream: {str(e)}")
+            logger.error(f"Stream name: {stream_name}")
+            raise
 
     def safe_cast_record_values(self, row: dict):
         """
@@ -315,7 +320,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         # Create the stream
         if self.destination_id:
             project, dataset, table_name = self.destination_id.split(".")
-            write_client = bigquery_storage_v1.BigQueryWriteClient()
+            write_client = self.bq_storage_client
             parent = write_client.table_path(project, dataset, table_name)
         else:
             write_client = self.bq_storage_client
