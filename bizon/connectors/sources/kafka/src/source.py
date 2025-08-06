@@ -12,6 +12,7 @@ from confluent_kafka import (
     Message,
     TopicPartition,
 )
+from confluent_kafka.cimpl import KafkaException as CimplKafkaException
 from loguru import logger
 from pydantic import BaseModel
 from pytz import UTC
@@ -379,4 +380,9 @@ class KafkaSource(AbstractSource):
 
     def commit(self):
         """Commit the offsets of the consumer"""
-        self.consumer.commit(asynchronous=False)
+        try:
+            self.consumer.commit(asynchronous=False)
+        except CimplKafkaException as e:
+            logger.error(f"Kafka exception occurred during commit: {e}")
+            logger.info("Gracefully exiting without committing offsets due to Kafka exception")
+            return
