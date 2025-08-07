@@ -15,7 +15,7 @@ from google.api_core.exceptions import (
     ServerError,
     ServiceUnavailable,
 )
-from google.cloud import bigquery, bigquery_storage_v1
+from google.cloud import bigquery
 from google.cloud.bigquery import DatasetReference, TimePartitioning
 from google.cloud.bigquery_storage_v1 import BigQueryWriteClient
 from google.cloud.bigquery_storage_v1.types import (
