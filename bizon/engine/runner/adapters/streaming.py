@@ -107,7 +107,12 @@ class StreamingRunner(AbstractRunner):
                     )
 
                     if os.getenv("ENVIRONMENT") == "production":
-                        source.commit(destination_id=destination_id)
+                        try:
+                            source.commit(destination_id=destination_id)
+                        except Exception as e:
+                            logger.error(f"Error committing source: {e}")
+                            monitor.track_pipeline_status(PipelineReturnStatus.ERROR)
+                            return RunnerStatus(stream=PipelineReturnStatus.ERROR)
 
                 iteration += 1
 
