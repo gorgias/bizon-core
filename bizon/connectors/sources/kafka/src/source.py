@@ -80,7 +80,11 @@ class KafkaSource(AbstractSource):
         # Consumer instance
         self.consumer = Consumer(self.config.consumer_config)
 
+        # Map topic_name to destination_id
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
+
+        # Cache last message for each destination_id to commit per topic
+        self.last_message_cache = {}
 
     @staticmethod
     def streams() -> List[str]:
@@ -265,6 +269,8 @@ class KafkaSource(AbstractSource):
                 logger.debug(
                     f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} is empty, skipping."
                 )
+                # Cache the last message for the destination_id
+                self.last_message_cache[self.topic_map[message.topic()]] = message
                 continue
 
             # Decode the message
@@ -293,6 +299,9 @@ class KafkaSource(AbstractSource):
                         destination_id=self.topic_map[message.topic()],
                     )
                 )
+
+                # Cache the last message for the destination_id
+                self.last_message_cache[self.topic_map[message.topic()]] = message
 
             except Exception as e:
                 logger.error(
@@ -381,8 +390,9 @@ class KafkaSource(AbstractSource):
     def commit(self):
         """Commit the offsets of the consumer"""
         try:
-            self.consumer.commit(asynchronous=False)
+            self.consumer.commit(message=self.last_message_cache[destination_id], asynchronous=False)
         except CimplKafkaException as e:
             logger.error(f"Kafka exception occurred during commit: {e}")
             logger.info("Gracefully exiting without committing offsets due to Kafka exception")
             return
+

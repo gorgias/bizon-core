@@ -108,12 +108,13 @@ class StreamingRunner(AbstractRunner):
 
                 if os.getenv("ENVIRONMENT") == "production":
                     try:
-                        source.commit()
+                        source.commit(destination_id=destination_id)
                     except Exception as e:
                         logger.error(f"Error committing source: {e}")
                         logger.info("Gracefully exiting without committing offsets due to Kafka exception")
                         monitor.track_pipeline_status(PipelineReturnStatus.ERROR)
                         return RunnerStatus(stream=PipelineReturnStatus.ERROR)
+
 
                 iteration += 1
 
