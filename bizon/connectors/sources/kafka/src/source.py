@@ -82,6 +82,7 @@ class KafkaSource(AbstractSource):
 
         # Map topic_name to destination_id
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
+        self.destination_id_map = {topic.destination_id: topic.name for topic in self.config.topics}
 
         # Cache last message for each destination_id to commit per topic
         self.last_message_cache = {}
@@ -387,12 +388,12 @@ class KafkaSource(AbstractSource):
         else:
             return self.read_topics_manually(pagination)
 
-    def commit(self):
+    def commit(self, destination_id: str):
         """Commit the offsets of the consumer"""
         try:
             self.consumer.commit(message=self.last_message_cache[destination_id], asynchronous=False)
         except CimplKafkaException as e:
-            logger.error(f"Kafka exception occurred during commit: {e}")
+            logger.error(
+                f"Kafka exception occurred during commit of {destination_id}, topic: {self.destination_id_map[destination_id]}: {e}"
+            )
             logger.info("Gracefully exiting without committing offsets due to Kafka exception")
-            return
-
