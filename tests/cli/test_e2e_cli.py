@@ -39,7 +39,7 @@ BIZON_CONFIG_DUMMY_TO_FILE = f"""
 
 def test_e2e_run_command_dummy_to_file():
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with runner.isolated_filesystem():
 
