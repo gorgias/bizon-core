@@ -106,8 +106,8 @@ class StreamingRunner(AbstractRunner):
                         headers=dsm_headers,
                     )
 
-                if os.getenv("ENVIRONMENT") == "production":
-                    source.commit()
+                    if os.getenv("ENVIRONMENT") == "production":
+                        source.commit(destination_id=destination_id)
 
                 iteration += 1
 
