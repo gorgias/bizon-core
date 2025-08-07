@@ -398,7 +398,7 @@ class KafkaSource(AbstractSource):
                 offsets=list(self.topic_partition_map[self.destination_id_map[destination_id]].values()),
                 asynchronous=False,
             )
-            logger.debug(f"Commited message for topic {self.destination_id_map[destination_id]}")
+            logger.debug(f"Commited offsets for topic {self.destination_id_map[destination_id]}")
         except CimplKafkaException as e:
             logger.error(
                 f"Kafka exception occurred during commit of {destination_id}, topic: {self.destination_id_map[destination_id]}: {e}"
