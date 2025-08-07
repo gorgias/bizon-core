@@ -10,6 +10,7 @@ import urllib3.exceptions
 from google.api_core.client_options import ClientOptions
 from google.api_core.exceptions import (
     Conflict,
+    InvalidArgument,
     NotFound,
     RetryError,
     ServerError,
@@ -133,6 +134,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                 RetryError,
                 urllib3.exceptions.ProtocolError,
                 urllib3.exceptions.SSLError,
+                InvalidArgument,
             )
         ),
         wait=wait_exponential(multiplier=2, min=4, max=120),

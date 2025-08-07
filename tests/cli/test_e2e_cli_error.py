@@ -33,14 +33,14 @@ transforms:
 
 def test_e2e_run_command_dummy_to_file():
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with tempfile.NamedTemporaryFile(delete=False) as temp:
         # Write config in temp file
         with open(temp.name, "w") as f:
             f.write(BIZON_CONFIG_DUMMY_TO_FILE)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(cli, ["run", temp.name])
 
         assert result.exit_code == 1
