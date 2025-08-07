@@ -79,6 +79,14 @@ ipykernel = "^6.29.5"
 snakeviz = "^2.1.2"
 yappi = "^1.3.2"
 pre-commit = "^3.8.0"
+flake8 = "^7.0.0"
+mypy = "^1.8.0"
+bandit = "^1.7.5"
+pydocstyle = "^6.3.0"
+coverage = "^7.4.0"
+pytest-cov = "^4.1.0"
+types-requests = "^2.31.0"
+types-PyYAML = "^6.0.12"
 
 
 [build-system]
@@ -87,3 +95,29 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 bizon = "bizon.cli.main:cli"
+
+[tool.coverage.run]
+source = ["bizon"]
+omit = ["*/tests/*", "*/test_*", "*/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B601"]  # Skip assert and shell usage tests
+
+[tool.pydocstyle]
+convention = "google"
+add_ignore = ["D100", "D104"]  # Ignore missing docstrings for modules and packages
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 120

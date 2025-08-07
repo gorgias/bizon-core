@@ -69,3 +69,30 @@ ipython_config.py
 
 hubspot_credentials.json
 test-pipeline*.yml
+
+# Linting and type checking
+.mypy_cache/
+.flake8_cache/
+.bandit/
+.pydocstyle_cache/
+
+# Security scan reports
+bandit-report.json
+safety-report.json
+trivy-results.sarif
+
+# VS Code settings (optional - remove if you want to commit them)
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+
+# PyCharm
+.idea/
+
+# Coverage reports
+htmlcov/
+.coverage.*
+
+# Profiling
+*.prof
+*.pstats
