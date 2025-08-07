@@ -17,6 +17,7 @@ from google.api_core.exceptions import (
 )
 from google.cloud import bigquery, bigquery_storage_v1
 from google.cloud.bigquery import DatasetReference, TimePartitioning
+from google.cloud.bigquery_storage_v1 import BigQueryWriteClient
 from google.cloud.bigquery_storage_v1.types import (
     AppendRowsRequest,
     ProtoRows,
@@ -74,7 +75,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         self.bq_storage_client_options = ClientOptions(
             quota_project_id=self.project_id,
         )
-        self.bq_storage_client = bigquery_storage_v1.BigQueryWriteClient(client_options=self.bq_storage_client_options)
 
     @property
     def table_id(self) -> str:
@@ -148,7 +148,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         proto_schema: ProtoSchema,
         serialized_rows: List[bytes],
     ):
-        write_client = bigquery_storage_v1.BigQueryWriteClient(client_options=self.bq_storage_client_options)
+        write_client = BigQueryWriteClient(client_options=self.bq_storage_client_options)
 
         request = AppendRowsRequest(
             write_stream=stream_name,
@@ -324,11 +324,9 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         # Create the stream
         if self.destination_id:
             project, dataset, table_name = self.destination_id.split(".")
-            write_client = self.bq_storage_client
-            parent = write_client.table_path(project, dataset, table_name)
+            parent = BigQueryWriteClient.table_path(project, dataset, table_name)
         else:
-            write_client = self.bq_storage_client
-            parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
+            parent = BigQueryWriteClient.table_path(self.project_id, self.dataset_id, self.destination_id)
 
         stream_name = f"{parent}/_default"
 
