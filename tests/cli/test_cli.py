@@ -42,7 +42,7 @@ def test_run_command():
         with open(temp.name, "w") as f:
             f.write(test_pg_config)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(cli, ["run", temp.name])
         assert result.exit_code == 0
 
@@ -53,13 +53,13 @@ def test_run_command_debug():
         with open(temp.name, "w") as f:
             f.write(test_pg_config)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(cli, ["run", temp.name, "--log-level", "DEBUG"])
         assert result.exit_code == 0
 
 
 def test_source_list_command():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(cli, ["source", "list"])
     assert "Available sources:" in result.output
     assert "dummy" in result.output
@@ -67,7 +67,7 @@ def test_source_list_command():
 
 
 def test_stream_list_command():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(cli, ["stream", "list", "dummy"])
     assert "Available streams for dummy:" in result.output
     assert "[Full refresh only] - plants" in result.output
