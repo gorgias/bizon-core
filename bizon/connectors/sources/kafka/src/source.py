@@ -84,8 +84,7 @@ class KafkaSource(AbstractSource):
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
         self.destination_id_map = {topic.destination_id: topic.name for topic in self.config.topics}
 
-        # Cache last message for each destination_id to commit per topic
-        self.last_message_cache = {}
+        self.topic_partition_map = {topic.name: {} for topic in self.config.topics}
 
     @staticmethod
     def streams() -> List[str]:
@@ -270,8 +269,10 @@ class KafkaSource(AbstractSource):
                 logger.debug(
                     f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} is empty, skipping."
                 )
-                # Cache the last message for the destination_id
-                self.last_message_cache[self.topic_map[message.topic()]] = message
+                # Increment the offset for the partition
+                self.topic_partition_map[message.topic()][message.partition()] = TopicPartition(
+                    topic=message.topic(), partition=message.partition(), offset=message.offset()
+                )
                 continue
 
             # Decode the message
@@ -302,7 +303,9 @@ class KafkaSource(AbstractSource):
                 )
 
                 # Cache the last message for the destination_id
-                self.last_message_cache[self.topic_map[message.topic()]] = message
+                self.topic_partition_map[message.topic()][message.partition()] = TopicPartition(
+                    topic=message.topic(), partition=message.partition(), offset=message.offset()
+                )
 
             except Exception as e:
                 logger.error(
@@ -391,10 +394,11 @@ class KafkaSource(AbstractSource):
     def commit(self, destination_id: str):
         """Commit the offsets of the consumer"""
         try:
-            self.consumer.commit(message=self.last_message_cache[destination_id], asynchronous=False)
-            logger.debug(f"Commited message for topic {self.destination_id_map[destination_id]}")
-            logger.debug(f"Offset: {self.last_message_cache[destination_id].offset()}")
-            logger.debug(f"Partition: {self.last_message_cache[destination_id].partition()}")
+            self.consumer.commit(
+                offsets=list(self.topic_partition_map[self.destination_id_map[destination_id]].values()),
+                asynchronous=False,
+            )
+            logger.debug(f"Commited offsets for topic {self.destination_id_map[destination_id]}")
         except CimplKafkaException as e:
             logger.error(
                 f"Kafka exception occurred during commit of {destination_id}, topic: {self.destination_id_map[destination_id]}: {e}"
