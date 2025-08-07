@@ -7,6 +7,7 @@ from typing import List, Tuple, Type
 import orjson
 import polars as pl
 import urllib3.exceptions
+from google.api_core.client_options import ClientOptions
 from google.api_core.exceptions import (
     Conflict,
     NotFound,
@@ -16,6 +17,7 @@ from google.api_core.exceptions import (
 )
 from google.cloud import bigquery, bigquery_storage_v1
 from google.cloud.bigquery import DatasetReference, TimePartitioning
+from google.cloud.bigquery_storage_v1 import BigQueryWriteClient
 from google.cloud.bigquery_storage_v1.types import (
     AppendRowsRequest,
     ProtoRows,
@@ -67,10 +69,12 @@ class BigQueryStreamingV2Destination(AbstractDestination):
 
         self.project_id = config.project_id
         self.bq_client = bigquery.Client(project=self.project_id)
-        self.bq_storage_client = bigquery_storage_v1.BigQueryWriteClient()
         self.dataset_id = config.dataset_id
         self.dataset_location = config.dataset_location
         self.bq_max_rows_per_request = config.bq_max_rows_per_request
+        self.bq_storage_client_options = ClientOptions(
+            quota_project_id=self.project_id,
+        )
 
     @property
     def table_id(self) -> str:
@@ -140,11 +144,12 @@ class BigQueryStreamingV2Destination(AbstractDestination):
     )
     def append_rows_to_stream(
         self,
-        write_client: bigquery_storage_v1.BigQueryWriteClient,
         stream_name: str,
         proto_schema: ProtoSchema,
         serialized_rows: List[bytes],
     ):
+        write_client = BigQueryWriteClient(client_options=self.bq_storage_client_options)
+
         request = AppendRowsRequest(
             write_stream=stream_name,
             proto_rows=AppendRowsRequest.ProtoData(
@@ -238,7 +243,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
     )
     def process_streaming_batch(
         self,
-        write_client: bigquery_storage_v1.BigQueryWriteClient,
         stream_name: str,
         proto_schema: ProtoSchema,
         batch: dict,
@@ -249,7 +253,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         try:
             # Handle streaming batch
             if batch.get("stream_batch") and len(batch["stream_batch"]) > 0:
-                result = self.append_rows_to_stream(write_client, stream_name, proto_schema, batch["stream_batch"])
+                result = self.append_rows_to_stream(stream_name, proto_schema, batch["stream_batch"])
                 results.append(("streaming", result))
 
             # Handle large rows batch
@@ -320,11 +324,9 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         # Create the stream
         if self.destination_id:
             project, dataset, table_name = self.destination_id.split(".")
-            write_client = self.bq_storage_client
-            parent = write_client.table_path(project, dataset, table_name)
+            parent = BigQueryWriteClient.table_path(project, dataset, table_name)
         else:
-            write_client = self.bq_storage_client
-            parent = write_client.table_path(self.project_id, self.dataset_id, self.destination_id)
+            parent = BigQueryWriteClient.table_path(self.project_id, self.dataset_id, self.destination_id)
 
         stream_name = f"{parent}/_default"
 
@@ -374,9 +376,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit all batch processing tasks
                 future_to_batch = {
-                    executor.submit(
-                        self.process_streaming_batch, write_client, stream_name, proto_schema, batch, TableRow
-                    ): batch
+                    executor.submit(self.process_streaming_batch, stream_name, proto_schema, batch, TableRow): batch
                     for batch in batches
                 }
 
