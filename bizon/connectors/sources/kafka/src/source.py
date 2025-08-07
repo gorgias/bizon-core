@@ -392,6 +392,9 @@ class KafkaSource(AbstractSource):
         """Commit the offsets of the consumer"""
         try:
             self.consumer.commit(message=self.last_message_cache[destination_id], asynchronous=False)
+            logger.debug(f"Commited message for topic {self.destination_id_map[destination_id]}")
+            logger.debug(f"Offset: {self.last_message_cache[destination_id].offset()}")
+            logger.debug(f"Partition: {self.last_message_cache[destination_id].partition()}")
         except CimplKafkaException as e:
             logger.error(
                 f"Kafka exception occurred during commit of {destination_id}, topic: {self.destination_id_map[destination_id]}: {e}"
