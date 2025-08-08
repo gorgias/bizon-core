@@ -106,13 +106,13 @@ class StreamingRunner(AbstractRunner):
                         headers=dsm_headers,
                     )
 
-                    if os.getenv("ENVIRONMENT") == "production":
-                        try:
-                            source.commit(destination_id=destination_id)
-                        except Exception as e:
-                            logger.error(f"Error committing source: {e}")
-                            monitor.track_pipeline_status(PipelineReturnStatus.ERROR)
-                            return RunnerStatus(stream=PipelineReturnStatus.ERROR)
+                if os.getenv("ENVIRONMENT") == "production":
+                    try:
+                        source.commit()
+                    except Exception as e:
+                        logger.error(f"Error committing source: {e}")
+                        monitor.track_pipeline_status(PipelineReturnStatus.ERROR)
+                        return RunnerStatus(stream=PipelineReturnStatus.ERROR)
 
                 iteration += 1
 

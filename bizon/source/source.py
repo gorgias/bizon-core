@@ -101,6 +101,6 @@ class AbstractSource(ABC):
         """Return a new session"""
         return Session()
 
-    def commit(self, destination_id: str):
-        """Commit the records to the source for a given destination_id"""
+    def commit(self):
+        """Commit the records to the source"""
         pass

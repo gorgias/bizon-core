@@ -82,9 +82,6 @@ class KafkaSource(AbstractSource):
 
         # Map topic_name to destination_id
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
-        self.destination_id_map = {topic.destination_id: topic.name for topic in self.config.topics}
-
-        self.topic_partition_map = {topic.name: {} for topic in self.config.topics}
 
     @staticmethod
     def streams() -> List[str]:
@@ -391,16 +388,10 @@ class KafkaSource(AbstractSource):
         else:
             return self.read_topics_manually(pagination)
 
-    def commit(self, destination_id: str):
+    def commit(self):
         """Commit the offsets of the consumer"""
         try:
-            self.consumer.commit(
-                offsets=list(self.topic_partition_map[self.destination_id_map[destination_id]].values()),
-                asynchronous=False,
-            )
-            logger.debug(f"Commited offsets for topic {self.destination_id_map[destination_id]}")
+            self.consumer.commit(asynchronous=False)
         except CimplKafkaException as e:
-            logger.error(
-                f"Kafka exception occurred during commit of {destination_id}, topic: {self.destination_id_map[destination_id]}: {e}"
-            )
+            logger.error(f"Kafka exception occurred during commit: {e}")
             logger.info("Gracefully exiting without committing offsets due to Kafka exception")
