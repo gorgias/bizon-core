@@ -266,10 +266,6 @@ class KafkaSource(AbstractSource):
                 logger.debug(
                     f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()} is empty, skipping."
                 )
-                # Increment the offset for the partition
-                self.topic_partition_map[message.topic()][message.partition()] = TopicPartition(
-                    topic=message.topic(), partition=message.partition(), offset=message.offset()
-                )
                 continue
 
             # Decode the message
@@ -297,11 +293,6 @@ class KafkaSource(AbstractSource):
                         data=data,
                         destination_id=self.topic_map[message.topic()],
                     )
-                )
-
-                # Cache the last message for the destination_id
-                self.topic_partition_map[message.topic()][message.partition()] = TopicPartition(
-                    topic=message.topic(), partition=message.partition(), offset=message.offset()
                 )
 
             except Exception as e:
