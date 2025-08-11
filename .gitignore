@@ -17,6 +17,10 @@ __pycache__/
 *.sqlite3
 *.sqlite3-journal
 
+# Virtual environments
+.venv/
+venv/
+
 # Distribution / packaging
 .Python
 build/
