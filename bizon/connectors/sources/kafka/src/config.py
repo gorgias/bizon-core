@@ -66,10 +66,4 @@ class KafkaSourceConfig(SourceConfig):
 
     message_encoding: str = Field(default=MessageEncoding.AVRO, description="Encoding to use to decode the message")
 
-    # Schema ID header configuration
-    nb_bytes_schema_id: Literal[4, 8] = Field(
-        description="Number of bytes encode SchemaID in Kafka message. Standard is 4.",
-        default=4,
-    )
-
     authentication: KafkaAuthConfig = Field(..., description="Authentication configuration")
