@@ -28,7 +28,6 @@ from .config import KafkaSourceConfig, MessageEncoding, SchemaRegistryType
 from .decode import (
     Hashabledict,
     decode_avro_message,
-    get_header_bytes,
     parse_global_id_from_serialized_message,
 )
 
@@ -187,13 +186,8 @@ class KafkaSource(AbstractSource):
 
     def decode_avro(self, message: Message) -> Tuple[dict, dict]:
         """Decode the message as avro and return the parsed message and the schema"""
-        # Get the header bytes and the global id from the message
-        header_message_bytes = get_header_bytes(
-            nb_bytes_schema_id=self.config.nb_bytes_schema_id, message=message.value()
-        )
-        global_id = parse_global_id_from_serialized_message(
-            nb_bytes_schema_id=self.config.nb_bytes_schema_id,
-            header_message_bytes=header_message_bytes,
+        global_id, nb_bytes_schema_id = parse_global_id_from_serialized_message(
+            message=message.value(),
         )
 
         try:
@@ -210,9 +204,8 @@ class KafkaSource(AbstractSource):
 
         return (
             decode_avro_message(
-                message=message,
-                nb_bytes_schema_id=self.config.nb_bytes_schema_id,
-                hashable_dict_schema=hashable_dict_schema,
+                message_value=message.value(),
+                nb_bytes_schema_id=nb_bytes_schema_id,
                 avro_schema=avro_schema,
             ),
             hashable_dict_schema,
