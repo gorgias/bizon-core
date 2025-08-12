@@ -28,7 +28,6 @@ from .config import KafkaSourceConfig, MessageEncoding, SchemaRegistryType
 from .decode import (
     Hashabledict,
     decode_avro_message,
-    get_header_bytes,
     parse_global_id_from_serialized_message,
 )
 
