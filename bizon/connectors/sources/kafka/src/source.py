@@ -204,7 +204,7 @@ class KafkaSource(AbstractSource):
 
         return (
             decode_avro_message(
-                message=message,
+                message=message.value(),
                 nb_bytes_schema_id=nb_bytes_schema_id,
                 hashable_dict_schema=hashable_dict_schema,
                 avro_schema=avro_schema,
