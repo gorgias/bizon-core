@@ -8,8 +8,6 @@ source:
 
   topic: my-topic
 
-  nb_bytes_schema_id: 8
-
   batch_size: 1000
   consumer_timeout: 10
   bootstrap_servers: <bootstrap-severs>:9092
