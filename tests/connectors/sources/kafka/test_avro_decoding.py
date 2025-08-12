@@ -11,7 +11,6 @@ from avro.schema import parse
 from bizon.connectors.sources.kafka.src.decode import (
     Hashabledict,
     decode_avro_message,
-    get_header_bytes,
     parse_global_id_from_serialized_message,
 )
 
@@ -63,48 +62,28 @@ def test_data():
     }
 
 
-def test_get_header_bytes_8(test_data):
-    """Test getting header bytes from a message with 8-byte schema ID"""
-    header_bytes = get_header_bytes(8, test_data["serialized_message_8"])
-
-    # Should return the first 9 bytes (1 magic byte + 8 schema ID bytes)
-    assert len(header_bytes) == 9
-    assert header_bytes == test_data["serialized_message_8"][:9]
-
-
-def test_get_header_bytes_4(test_data):
-    """Test getting header bytes from a message with 4-byte schema ID"""
-    header_bytes = get_header_bytes(4, test_data["serialized_message_4"])
-
-    # Should return bytes 1-5 (the 4-byte schema ID after magic byte)
-    assert len(header_bytes) == 4
-    assert header_bytes == test_data["serialized_message_4"][1:5]
-
-
-def test_get_header_bytes_unsupported(test_data):
-    """Test getting header bytes with unsupported schema ID byte length"""
-    with pytest.raises(ValueError):
-        get_header_bytes(6, test_data["serialized_message_8"])
-
-
 def test_parse_global_id_8_bytes(test_data):
     """Test parsing global ID from message with 8-byte schema ID"""
-    header_bytes = get_header_bytes(8, test_data["serialized_message_8"])
-    global_id = parse_global_id_from_serialized_message(8, header_bytes)
-    assert global_id == test_data["schema_id"]
+    # Parse directly from the full message (Apicurio format with 0 as schema ID triggers 8-byte read)
+    schema_id, nb_bytes = parse_global_id_from_serialized_message(test_data["serialized_message_8"][:9])
+    assert nb_bytes == 8
 
 
 def test_parse_global_id_4_bytes(test_data):
     """Test parsing global ID from message with 4-byte schema ID"""
-    header_bytes = get_header_bytes(4, test_data["serialized_message_4"])
-    global_id = parse_global_id_from_serialized_message(4, header_bytes)
-    assert global_id == test_data["schema_id"]
+    # Parse directly from the full message (Confluent format)
+    schema_id, nb_bytes = parse_global_id_from_serialized_message(test_data["serialized_message_4"])
+    assert schema_id == test_data["schema_id"]
+    assert nb_bytes == 4
 
 
-def test_parse_global_id_unsupported():
-    """Test parsing global ID with unsupported schema ID byte length"""
-    with pytest.raises(ValueError):
-        parse_global_id_from_serialized_message(6, b"123456")
+def test_parse_global_id_invalid_message():
+    """Test parsing global ID with invalid message"""
+    from confluent_kafka.serialization import SerializationError
+
+    with pytest.raises(SerializationError):
+        # Too short message
+        parse_global_id_from_serialized_message(b"123")
 
 
 @patch("bizon.connectors.sources.kafka.src.decode.fastavro.schemaless_reader")
@@ -113,12 +92,8 @@ def test_decode_avro_message(mock_reader, test_data):
     # Set up the mock to return our test data
     mock_reader.return_value = test_data["data"]
 
-    # Create a mock message object
-    mock_message = MagicMock()
-    mock_message.value.return_value = test_data["serialized_message_8"]
-
-    # Call the decode function
-    result = decode_avro_message(mock_message, 8, test_data["hashable_schema"], test_data["avro_schema"])
+    # Call the decode function with raw bytes
+    result = decode_avro_message(test_data["serialized_message_8"], 8, test_data["avro_schema"])
 
     # Verify the result
     assert result == test_data["data"]
