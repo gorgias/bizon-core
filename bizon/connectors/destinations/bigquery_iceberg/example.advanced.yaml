@@ -1,0 +1,182 @@
+# Advanced BigQuery Iceberg Destination Example
+# This shows more configuration options and different catalog types
+
+name: advanced_iceberg_pipeline_example
+
+source:
+  name: kafka
+  stream: topic
+  sync_mode: stream
+  topics:
+    - destination_id: "user_events_iceberg"
+      name: "events.user.activity"
+    - destination_id: "order_events_iceberg"
+      name: "events.commerce.orders"
+
+  # Kafka configuration
+  message_encoding: utf-8
+  timestamp_ms_name: ts_ms
+  batch_size: 2000  # Larger batch size for better Iceberg performance
+  consumer_timeout: 30
+  bootstrap_servers: your-kafka-cluster:9092
+  group_id: iceberg-consumer-group
+
+  authentication:
+    type: basic
+    schema_registry_url: https://your-schema-registry.com
+    schema_registry_username: username
+    schema_registry_password: password
+    params:
+      username: kafka_user
+      password: kafka_password
+
+destination:
+  name: bigquery_iceberg
+  config:
+    # BigQuery Settings
+    project_id: your-gcp-project
+    dataset_id: iceberg_data
+    dataset_location: US
+
+    # GCS Warehouse Settings
+    gcs_warehouse_bucket: your-iceberg-bucket
+    gcs_warehouse_path: warehouse
+
+    # Iceberg Table Settings
+    table_format: parquet           # Best compression and query performance
+    target_file_size_mb: 256        # Larger files for better performance
+    write_batch_size: 2000          # Match source batch size
+    iceberg_namespace: analytics    # Iceberg namespace for organizing tables
+
+    # Advanced Partitioning for Performance
+    time_partitioning:
+      - field: "_bizon_loaded_at"   # Time-based partitioning for efficient queries
+        type: DAY
+
+    # Multi-Table Destination Configuration with Custom Schemas
+    destination_table_config:
+      - destination_id: "user_events"
+        clustering_keys: ["uid", "event"]  # Field names as they appear in Iceberg table
+        # Upsert configuration for this specific table
+        upsert:
+          enabled: true
+          join_cols: ["uid", "event_timestamp"]  # Update records based on user and timestamp
+          when_matched_update_all: true          # Update existing records
+          when_not_matched_insert_all: true      # Insert new records
+          case_sensitive: true
+        iceberg_schema:
+          # Simplified field configuration with Iceberg types
+          - name: uid              # Mapped from user_id
+            type: long
+          - name: event            # Mapped from event_name
+            type: string
+          - name: event_timestamp  # Mapped from created_at
+            type: timestamp
+          - name: session_id
+            type: string
+          - name: event_properties # Mapped from properties
+            type: string
+          # Bizon metadata fields (can override defaults)
+          - name: _bizon_extracted_at
+            type: timestamp
+          - name: _bizon_loaded_at
+            type: timestamp
+          - name: _source_data
+            type: string
+
+      - destination_id: "orders"
+        clustering_keys: ["customer_id", "region"]
+        iceberg_schema:
+          - name: order_id
+            type: string
+          - name: customer_id
+            type: long
+          - name: total_amount     # Mapped from amount
+            type: double
+          - name: currency_code    # Mapped from currency
+            type: string
+          - name: region
+            type: string
+          - name: status           # Mapped from order_status
+            type: string
+
+    # BigLake Connection
+    biglake_connection_id: us.your-biglake-connection
+
+    # Production SQL Catalog Configuration
+    catalog_config:
+      production:
+        type: sql
+        uri: postgresql+psycopg2://iceberg_user:secure_password@iceberg-db.example.com:5432/iceberg_catalog
+        init_catalog_tables: false  # Tables already initialized in production
+        warehouse: gs://your-iceberg-bucket/warehouse
+
+
+    # Service Account Authentication
+    authentication:
+      service_account_key: |
+        {
+          "type": "service_account",
+          "project_id": "your-gcp-project",
+          "private_key_id": "key-id",
+          "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+          "client_email": "iceberg-service@your-project.iam.gserviceaccount.com",
+          "client_id": "client-id",
+          "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+          "token_uri": "https://oauth2.googleapis.com/token"
+        }
+
+---
+# Alternative: REST Catalog Configuration
+name: iceberg_with_rest_catalog
+
+source:
+  # ... same source configuration ...
+
+destination:
+  name: bigquery_iceberg
+  config:
+    project_id: your-gcp-project
+    dataset_id: iceberg_data
+    dataset_location: US
+    gcs_warehouse_bucket: your-iceberg-bucket
+    gcs_warehouse_path: warehouse
+    table_format: parquet
+
+    # REST Catalog Configuration
+    catalog_config:
+      default:
+        type: rest
+        uri: http://your-iceberg-catalog:8181
+        # Warehouse path is handled by the REST service
+
+        # Optional REST-specific properties
+        rest.sigv4-enabled: false
+        rest.credential: your-rest-credential
+
+---
+# Alternative: File-based Hive Catalog
+name: iceberg_with_hive_catalog
+
+source:
+  # ... same source configuration ...
+
+destination:
+  name: bigquery_iceberg
+  config:
+    project_id: your-gcp-project
+    dataset_id: iceberg_data
+    dataset_location: US
+    gcs_warehouse_bucket: your-iceberg-bucket
+    gcs_warehouse_path: warehouse
+    table_format: orc  # ORC format works well with Hive
+
+    # File-based Hive Catalog
+    catalog_config:
+      default:
+        type: hive
+        warehouse: gs://your-iceberg-bucket/warehouse
+
+        # Optional Hive-specific properties
+        hive.metastore.uris: thrift://hive-metastore:9083
+        hive.metastore.warehouse.dir: gs://your-iceberg-bucket/warehouse

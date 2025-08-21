@@ -1,0 +1,148 @@
+# BigQuery Iceberg Destination with Upsert Configuration
+# This example demonstrates various upsert scenarios
+
+name: iceberg_upsert_pipeline
+
+source:
+  name: kafka
+  stream: topic
+  sync_mode: stream
+  topics:
+    - destination_id: "customers"
+      name: "crm.customers"
+    - destination_id: "products"
+      name: "catalog.products"
+
+  message_encoding: utf-8
+  timestamp_ms_name: ts_ms
+  batch_size: 1000
+  consumer_timeout: 30
+  bootstrap_servers: localhost:9092
+  group_id: iceberg-upsert-group
+
+destination:
+  name: bigquery_iceberg
+  config:
+    # BigQuery Settings
+    project_id: your-gcp-project
+    dataset_id: iceberg_data
+    dataset_location: US
+
+    # GCS Warehouse Settings
+    gcs_warehouse_bucket: your-iceberg-bucket
+    gcs_warehouse_path: warehouse
+
+    # Iceberg Table Settings
+    table_format: parquet
+    target_file_size_mb: 128
+    write_batch_size: 1000
+    iceberg_namespace: production
+
+    # Global upsert configuration (applies to all tables unless overridden)
+    upsert:
+      enabled: true
+      when_matched_update_all: true      # Update existing records
+      when_not_matched_insert_all: true  # Insert new records
+      case_sensitive: false              # Case-insensitive matching
+
+    # Multi-Table Destination Configuration with Different Upsert Strategies
+    destination_table_config:
+      # Table 1: Full upsert based on customer_id
+      - destination_id: "customers"
+        clustering_keys: ["customer_id"]
+        upsert:
+          enabled: true
+          join_cols: ["customer_id"]       # Single join column for customer updates
+          when_matched_update_all: true    # Update all fields for existing customers
+          when_not_matched_insert_all: true # Insert new customers
+        iceberg_schema:
+          - name: customer_id
+            type: long
+          - name: email
+            type: string
+          - name: name
+            type: string
+          - name: last_updated
+            type: timestamp
+          - name: status
+            type: string
+
+      # Table 2: Insert-only for new products (no updates)
+      - destination_id: "products"
+        clustering_keys: ["product_id", "category"]
+        upsert:
+          enabled: true
+          join_cols: ["product_id", "variant_id"]  # Composite key
+          when_matched_update_all: false           # Don't update existing products
+          when_not_matched_insert_all: true        # Only insert new products
+        iceberg_schema:
+          - name: product_id
+            type: string
+          - name: variant_id
+            type: string
+          - name: category
+            type: string
+          - name: price
+            type: double
+          - name: created_at
+            type: timestamp
+
+    # BigLake Connection
+    biglake_connection_id: us.biglake-connection
+
+    # SQL Catalog Configuration
+    catalog_config:
+      default:
+        type: sql
+        uri: postgresql+psycopg2://user:password@localhost:5432/iceberg_catalog
+        init_catalog_tables: true
+
+---
+# Example 2: Update-only scenario (no inserts)
+name: iceberg_update_only_pipeline
+
+source:
+  name: kafka
+  stream: topic
+  sync_mode: stream
+  topics:
+    - destination_id: "inventory"
+      name: "warehouse.inventory"
+
+  bootstrap_servers: localhost:9092
+  group_id: iceberg-update-group
+
+destination:
+  name: bigquery_iceberg
+  config:
+    project_id: your-gcp-project
+    dataset_id: iceberg_data
+    dataset_location: US
+    gcs_warehouse_bucket: your-iceberg-bucket
+    gcs_warehouse_path: warehouse
+    iceberg_namespace: inventory
+
+    # Update-only configuration (no new inserts)
+    destination_table_config:
+      - destination_id: "inventory"
+        upsert:
+          enabled: true
+          join_cols: ["sku", "location_id"]     # Composite key for inventory
+          when_matched_update_all: true         # Update existing inventory records
+          when_not_matched_insert_all: false    # Don't insert new records
+        iceberg_schema:
+          - name: sku
+            type: string
+          - name: location_id
+            type: string
+          - name: quantity
+            type: long
+          - name: last_restocked
+            type: timestamp
+          - name: reserved_quantity
+            type: long
+
+    catalog_config:
+      default:
+        type: sql
+        uri: postgresql+psycopg2://user:password@localhost:5432/iceberg_catalog

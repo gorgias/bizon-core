@@ -4,6 +4,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from bizon.alerting.models import AlertingConfig
 from bizon.connectors.destinations.bigquery.src.config import BigQueryConfig
+from bizon.connectors.destinations.bigquery_iceberg.src.config import (
+    BigQueryIcebergConfig,
+)
 from bizon.connectors.destinations.bigquery_streaming.src.config import (
     BigQueryStreamingConfig,
 )
@@ -38,6 +41,7 @@ class BizonConfig(BaseModel):
 
     destination: Union[
         BigQueryConfig,
+        BigQueryIcebergConfig,
         BigQueryStreamingConfig,
         BigQueryStreamingV2Config,
         LoggerConfig,

@@ -1,0 +1,88 @@
+# Development/Testing Configuration for BigQuery Iceberg Destination
+# Simplified setup for local development and testing
+
+name: dev_iceberg_pipeline
+
+source:
+  name: dummy  # Use dummy source for testing
+  stream: test_data
+  sync_mode: full_refresh
+  config:
+    batch_size: 100
+    nb_records: 1000
+    record_schema:
+      - name: id
+        type: integer
+      - name: name
+        type: string
+      - name: email
+        type: string
+      - name: created_at
+        type: datetime
+      - name: active
+        type: boolean
+
+destination:
+  name: bigquery_iceberg
+  config:
+    # Development BigQuery Project
+    project_id: your-dev-project
+    dataset_id: iceberg_dev
+    dataset_location: US
+
+    # Development GCS Bucket
+    gcs_warehouse_bucket: your-dev-iceberg-bucket
+    gcs_warehouse_path: dev/warehouse
+
+    # Development-friendly settings
+    table_format: parquet
+    target_file_size_mb: 32      # Smaller files for dev
+    write_batch_size: 100        # Smaller batches for testing
+    iceberg_namespace: dev_bizon # Separate namespace for development
+
+    # Simple partitioning for development
+    time_partitioning:
+      - field: "_bizon_loaded_at"  # Time-based partitioning
+        type: DAY                  # Day-level partitioning for testing
+
+    # Simple destination configuration for development
+    destination_table_config:
+      - destination_id: "test_users"
+        clustering_keys: ["active"]  # Simple partition key
+        iceberg_schema:
+          # Map dummy source fields to Iceberg schema
+          - name: user_id    # Mapped from 'id' field
+            type: long
+          - name: full_name  # Mapped from 'name' field  
+            type: string
+          - name: email
+            type: string
+          - name: created_timestamp  # Mapped from 'created_at' field
+            type: timestamp
+          - name: is_active  # Mapped from 'active' field
+            type: boolean
+          # Bizon metadata fields will use defaults
+
+    # Development BigLake Connection
+    biglake_connection_id: us.dev-biglake-connection
+
+    # Local PostgreSQL for Iceberg Catalog (for testing)
+    catalog_config:
+      default:
+        type: sql
+        uri: postgresql+psycopg2://postgres:password@localhost:5432/iceberg_dev
+        init_catalog_tables: true  # Auto-create tables for development
+
+    # Use environment credentials for development
+    # authentication: null  # Will use GOOGLE_APPLICATION_CREDENTIALS env var
+
+# For local development, you can start a PostgreSQL container:
+# docker run -d --name iceberg-catalog-dev \
+#   -e POSTGRES_DB=iceberg_dev \
+#   -e POSTGRES_USER=postgres \
+#   -e POSTGRES_PASSWORD=password \
+#   -p 5432:5432 \
+#   postgres:13
+
+# Make sure to set your Google Cloud credentials:
+# export GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account.json

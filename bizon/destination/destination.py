@@ -355,4 +355,17 @@ class DestinationFactory:
                 monitor=monitor,
             )
 
+        elif config.name == DestinationTypes.BIGQUERY_ICEBERG:
+            from bizon.connectors.destinations.bigquery_iceberg.src.destination import (
+                BigQueryIcebergDestination,
+            )
+
+            return BigQueryIcebergDestination(
+                sync_metadata=sync_metadata,
+                config=config.config,
+                backend=backend,
+                source_callback=source_callback,
+                monitor=monitor,
+            )
+
         raise ValueError(f"Destination {config.name}" f"with params {config} not found")
