@@ -84,14 +84,13 @@ class TestBigQueryIcebergConfig:
         destination_configs = [
             DestinationTableConfig(
                 destination_id="orders",
-                clustering_keys=["customer_id", "region"],
                 iceberg_schema={
                     "order_id": IcebergFieldConfig(target_field="order_id", iceberg_type="string"),
                     "customer_id": IcebergFieldConfig(target_field="customer_id", iceberg_type="long"),
                     "amount": IcebergFieldConfig(target_field="amount", iceberg_type="double"),
                 },
             ),
-            DestinationTableConfig(destination_id="customers", clustering_keys=["country", "segment"]),
+            DestinationTableConfig(destination_id="customers"),
         ]
 
         config = BigQueryIcebergConfigDetails(
@@ -103,22 +102,20 @@ class TestBigQueryIcebergConfig:
 
         assert len(config.destination_table_config) == 2
         assert config.destination_table_config[0].destination_id == "orders"
-        assert config.destination_table_config[0].clustering_keys == ["customer_id", "region"]
 
-        # Check iceberg_schema for orders
-        orders_schema = config.destination_table_config[0].iceberg_schema
+        # Check iceberg_schema for orders using get_iceberg_schema_dict
+        orders_schema = config.destination_table_config[0].get_iceberg_schema_dict()
         assert "order_id" in orders_schema
-        assert orders_schema["order_id"].target_field == "order_id"
-        assert orders_schema["order_id"].iceberg_type == "string"
-        assert orders_schema["customer_id"].iceberg_type == "long"
-        assert orders_schema["amount"].iceberg_type == "double"
+        assert orders_schema["order_id"].field_name == "order_id"
+        assert orders_schema["order_id"].field_type == "string"
+        assert orders_schema["customer_id"].field_type == "long"
+        assert orders_schema["amount"].field_type == "double"
 
         assert config.destination_table_config[1].destination_id == "customers"
-        assert config.destination_table_config[1].clustering_keys == ["country", "segment"]
 
     def test_config_with_single_destination_table_config(self):
         """Test configuration with single destination table config."""
-        destination_config = DestinationTableConfig(destination_id="events", clustering_keys=["event_type", "user_id"])
+        destination_config = DestinationTableConfig(destination_id="events")
 
         config = BigQueryIcebergConfigDetails(
             project_id="test-project",
@@ -129,18 +126,23 @@ class TestBigQueryIcebergConfig:
 
         assert len(config.destination_table_config) == 1
         assert config.destination_table_config[0].destination_id == "events"
-        assert config.destination_table_config[0].clustering_keys == ["event_type", "user_id"]
 
-    def test_config_with_partition_fields(self):
-        """Test configuration with partition fields."""
+    def test_config_with_upsert_config(self):
+        """Test configuration with upsert config."""
+        from bizon.connectors.destinations.bigquery_iceberg.src.config import (
+            UpsertConfig,
+        )
+
+        upsert_config = UpsertConfig(enabled=True, join_cols=["id"])
         config = BigQueryIcebergConfigDetails(
             project_id="test-project",
             dataset_id="test_dataset",
             gcs_warehouse_bucket="test-bucket",
-            partition_fields=["region"],
+            upsert=upsert_config,
         )
 
-        assert config.partition_fields == ["region"]
+        assert config.upsert.enabled is True
+        assert config.upsert.join_cols == ["id"]
 
     def test_config_with_time_partitioning(self):
         """Test configuration with time partitioning."""
@@ -156,21 +158,28 @@ class TestBigQueryIcebergConfig:
         assert config.time_partitioning[0].field == "created_at"
         assert config.time_partitioning[0].type == TimePartitionType.DAY
 
-    def test_config_with_combined_partitioning(self):
-        """Test configuration with both time and identity partitioning."""
+    def test_config_with_destination_table_upsert(self):
+        """Test configuration with destination-specific upsert config."""
+        from bizon.connectors.destinations.bigquery_iceberg.src.config import (
+            UpsertConfig,
+        )
+
         time_partition = TimePartitionConfig(field="created_at", type=TimePartitionType.HOUR)
+        upsert_config = UpsertConfig(enabled=True, join_cols=["user_id"])
+        destination_config = DestinationTableConfig(destination_id="events", upsert=upsert_config)
         config = BigQueryIcebergConfigDetails(
             project_id="test-project",
             dataset_id="test_dataset",
             gcs_warehouse_bucket="test-bucket",
             time_partitioning=[time_partition],
-            partition_fields=["region", "domain"],
+            destination_table_config=[destination_config],
         )
 
         assert len(config.time_partitioning) == 1
         assert config.time_partitioning[0].field == "created_at"
         assert config.time_partitioning[0].type == TimePartitionType.HOUR
-        assert config.partition_fields == ["region", "domain"]
+        assert config.destination_table_config[0].upsert.enabled is True
+        assert config.destination_table_config[0].upsert.join_cols == ["user_id"]
 
     def test_iceberg_namespace_config(self):
         """Test iceberg_namespace configuration parameter."""
@@ -273,17 +282,22 @@ class TestBigQueryIcebergDestination:
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.load_catalog")
-    def test_get_clustering_keys_for_destination(self, mock_load_catalog, mock_storage_client, mock_bq_client):
-        """Test clustering keys retrieval."""
+    def test_get_upsert_config_for_destination(self, mock_load_catalog, mock_storage_client, mock_bq_client):
+        """Test upsert config retrieval."""
+        from bizon.connectors.destinations.bigquery_iceberg.src.config import (
+            UpsertConfig,
+        )
+
         mock_catalog = Mock()
         mock_load_catalog.return_value = mock_catalog
 
+        upsert_config = UpsertConfig(enabled=True, join_cols=["user_id", "event_type"])
         destination_config = DestinationTableConfig(
             destination_id="events",
-            clustering_keys=["user_id", "event_type"],
+            upsert=upsert_config,
         )
 
-        config_with_clustering = BigQueryIcebergConfigDetails(
+        config_with_upsert = BigQueryIcebergConfigDetails(
             project_id="test-project",
             dataset_id="test_dataset",
             gcs_warehouse_bucket="test-bucket",
@@ -292,14 +306,15 @@ class TestBigQueryIcebergDestination:
 
         destination = BigQueryIcebergDestination(
             sync_metadata=self.sync_metadata,
-            config=config_with_clustering,
+            config=config_with_upsert,
             backend=self.backend,
             source_callback=self.source_callback,
             monitor=self.monitor,
         )
 
-        clustering_keys = destination.get_clustering_keys_for_destination()
-        assert clustering_keys == ["user_id", "event_type"]
+        retrieved_upsert_config = destination.get_upsert_config_for_destination()
+        assert retrieved_upsert_config.enabled is True
+        assert retrieved_upsert_config.join_cols == ["user_id", "event_type"]
 
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
@@ -541,8 +556,10 @@ class TestBigQueryIcebergDestination:
 
         # Verify that nested struct was converted to string
         assert result_df["nested_data"].dtype == pl.Utf8
-        assert "key1" in str(result_df["nested_data"][0])
-        assert "key2" in str(result_df["nested_data"][0])
+        nested_str = str(result_df["nested_data"][0])
+        # The struct is converted to a JSON-like format, check that the values are preserved
+        assert "value1" in nested_str
+        assert "value2" in nested_str
 
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
     @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
@@ -674,6 +691,163 @@ class TestBigQueryIcebergDestination:
         assert "event_type" in field_names
         assert "timestamp" in field_names
         assert "other_field" in field_names
+
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.load_catalog")
+    def test_write_to_iceberg_with_retry_return_format(self, mock_load_catalog, mock_storage_client, mock_bq_client):
+        """Test that _write_to_iceberg_with_retry returns proper metrics."""
+        mock_catalog = Mock()
+        mock_load_catalog.return_value = mock_catalog
+
+        destination = BigQueryIcebergDestination(
+            sync_metadata=self.sync_metadata,
+            config=self.config,
+            backend=self.backend,
+            source_callback=self.source_callback,
+            monitor=self.monitor,
+        )
+
+        # Mock iceberg table
+        mock_iceberg_table = Mock()
+        mock_iceberg_table.current_snapshot.return_value = None  # Empty table
+
+        # Create test arrow table
+        import pyarrow as pa
+
+        arrow_table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+
+        # Test append operation (no upsert config)
+        with patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.run_with_timeout") as mock_timeout:
+            mock_timeout.return_value = None  # append returns None
+
+            result = destination._write_to_iceberg_with_retry(mock_iceberg_table, arrow_table, None)
+
+            # Verify return format
+            assert isinstance(result, dict)
+            assert result["success"] is True
+            assert result["operation"] == "append"
+            assert result["rows_processed"] == 3
+            assert "duration_seconds" in result
+            assert "total_duration_seconds" in result
+            assert result["table_was_empty"] is True
+
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.load_catalog")
+    def test_write_to_iceberg_empty_table_skip(self, mock_load_catalog, mock_storage_client, mock_bq_client):
+        """Test that empty tables are properly skipped."""
+        mock_catalog = Mock()
+        mock_load_catalog.return_value = mock_catalog
+
+        destination = BigQueryIcebergDestination(
+            sync_metadata=self.sync_metadata,
+            config=self.config,
+            backend=self.backend,
+            source_callback=self.source_callback,
+            monitor=self.monitor,
+        )
+
+        # Mock iceberg table
+        mock_iceberg_table = Mock()
+
+        # Create empty arrow table
+        import pyarrow as pa
+
+        empty_arrow_table = pa.table({"id": pa.array([], type=pa.int64())})
+
+        result = destination._write_to_iceberg_with_retry(mock_iceberg_table, empty_arrow_table, None)
+
+        # Verify empty table is skipped
+        assert result["success"] is True
+        assert result["skipped"] is True
+        assert result["rows_processed"] == 0
+
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.load_catalog")
+    def test_timeout_error_handling(self, mock_load_catalog, mock_storage_client, mock_bq_client):
+        """Test timeout error handling."""
+        from bizon.connectors.destinations.bigquery_iceberg.src.destination import (
+            OperationTimeoutError,
+        )
+
+        mock_catalog = Mock()
+        mock_load_catalog.return_value = mock_catalog
+
+        destination = BigQueryIcebergDestination(
+            sync_metadata=self.sync_metadata,
+            config=self.config,
+            backend=self.backend,
+            source_callback=self.source_callback,
+            monitor=self.monitor,
+        )
+
+        # Mock iceberg table
+        mock_iceberg_table = Mock()
+        mock_iceberg_table.current_snapshot.return_value = None  # Empty table
+
+        # Create test arrow table
+        import pyarrow as pa
+
+        arrow_table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+
+        # Mock timeout
+        with patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.run_with_timeout") as mock_timeout:
+            mock_timeout.side_effect = OperationTimeoutError("Operation timed out after 300 seconds")
+
+            # Should raise RuntimeError due to timeout
+            with pytest.raises(RuntimeError, match="Iceberg append operation failed"):
+                destination._write_to_iceberg_with_retry(mock_iceberg_table, arrow_table, None)
+
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.bigquery.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.storage.Client")
+    @patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.load_catalog")
+    def test_upsert_zero_rows_warning(self, mock_load_catalog, mock_storage_client, mock_bq_client):
+        """Test warning for upsert operations that affect zero rows."""
+        from bizon.connectors.destinations.bigquery_iceberg.src.config import (
+            UpsertConfig,
+        )
+
+        mock_catalog = Mock()
+        mock_load_catalog.return_value = mock_catalog
+
+        destination = BigQueryIcebergDestination(
+            sync_metadata=self.sync_metadata,
+            config=self.config,
+            backend=self.backend,
+            source_callback=self.source_callback,
+            monitor=self.monitor,
+        )
+
+        # Mock iceberg table (not empty - has snapshots)
+        mock_iceberg_table = Mock()
+        mock_iceberg_table.current_snapshot.return_value = Mock()  # Not empty
+
+        # Create test arrow table
+        import pyarrow as pa
+
+        arrow_table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+
+        # Create upsert config
+        upsert_config = UpsertConfig(enabled=True, join_cols=["id"])
+
+        # Mock upsert result with zero affected rows
+        mock_upsert_result = Mock()
+        mock_upsert_result.rows_updated = 0
+        mock_upsert_result.rows_inserted = 0
+
+        with patch("bizon.connectors.destinations.bigquery_iceberg.src.destination.run_with_timeout") as mock_timeout:
+            mock_timeout.return_value = mock_upsert_result
+
+            result = destination._write_to_iceberg_with_retry(mock_iceberg_table, arrow_table, upsert_config)
+
+            # Should succeed but log warning
+            assert result["success"] is True
+            assert result["operation"] == "upsert"
+            assert result["rows_processed"] == 0  # Zero rows affected
+            assert result["rows_updated"] == 0
+            assert result["rows_inserted"] == 0
 
 
 if __name__ == "__main__":
