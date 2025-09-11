@@ -318,6 +318,11 @@ jobs:
         
         print(f'📄 Config written to: {config_file}')
         
+        # Clean up any existing output files from previous runs
+        for cleanup_file in ['high_volume.json', 'low_volume.json', 'kafka_test.json']:
+            if os.path.exists(cleanup_file):
+                os.remove(cleanup_file)
+        
         # Set environment for production mode (enables commits)
         os.environ['ENVIRONMENT'] = 'production'
         
@@ -353,8 +358,9 @@ jobs:
                 print(f'   - {file} ({size} bytes)')
         
         # Look for files in current directory (where file destination writes)
-        high_vol_file = 'kafka_test.json'  # Based on destination_id
-        low_vol_file = 'low_volume.json'   # If separate files are created per destination_id
+        # Files are created based on destination_id from record schemas, not main destination_id
+        high_vol_file = 'high_volume.json'
+        low_vol_file = 'low_volume.json'
         
         high_vol_count = 0
         low_vol_count = 0
@@ -494,6 +500,11 @@ jobs:
             with open(config_file, 'w') as f:
                 f.write(config_yaml)
             
+            # Clean up any existing output files from previous runs
+            for cleanup_file in ['high_volume.json', 'low_volume.json', 'kafka_comparison_test.json']:
+                if os.path.exists(cleanup_file):
+                    os.remove(cleanup_file)
+            
             os.environ['ENVIRONMENT'] = 'production'
             
             import yaml
@@ -519,7 +530,7 @@ jobs:
                     size = os.path.getsize(file)
                     print(f'   - {file} ({size} bytes)')
             
-            high_vol_file = 'kafka_comparison_test.json'
+            high_vol_file = 'high_volume.json'
             low_vol_file = 'low_volume.json'
             
             high_vol_count = 0
