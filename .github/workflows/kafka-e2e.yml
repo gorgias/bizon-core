@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -66,9 +65,7 @@ jobs:
               KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
               CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
         EOF
-        
         docker compose up -d
-        
         echo "Waiting for container to start..."
         sleep 5
         docker compose ps
@@ -76,19 +73,15 @@ jobs:
     - name: Wait for Kafka to be ready
       run: |
         echo "Waiting for Kafka to be ready..."
-        
         # Check container logs
         echo "Container logs:"
         docker compose logs kafka | tail -20
-        
         # Wait for Kafka port to be available
         echo "Waiting for Kafka port 9092..."
         timeout 120s bash -c 'until nc -z localhost 9092; do echo "Waiting..."; sleep 3; done'
-        
         # Additional wait for Kafka to fully initialize
         echo "Waiting for Kafka to fully initialize..."
         sleep 15
-        
         # Check logs again
         echo "Final container logs:"
         docker compose logs kafka | tail -10
@@ -150,7 +143,6 @@ jobs:
         from confluent_kafka.admin import AdminClient, NewTopic
         
         print('🎯 Setting up Kafka test environment...')
-        
         # Create topics
         admin_client = AdminClient({'bootstrap.servers': 'localhost:9092'})
         topics = [
@@ -169,7 +161,6 @@ jobs:
                 else:
                     print(f'❌ Failed to create topic {topic_name}: {e}')
                     raise
-        
         # Produce test data
         producer = Producer({
             'bootstrap.servers': 'localhost:9092',
@@ -177,7 +168,6 @@ jobs:
         })
         
         print('🚀 Producing test data to simulate starvation scenario...')
-        
         # High-volume topic - simulate heavy load (200 messages)
         for i in range(200):
             message = {
@@ -197,7 +187,6 @@ jobs:
             
             if i % 50 == 0:
                 producer.flush()
-        
         # Low-volume topic - simulate critical but infrequent messages (10 messages)
         for i in range(10):
             message = {
@@ -262,15 +251,18 @@ jobs:
           partition_pause_threshold: 500
           message_encoding: utf-8
           max_iterations: 8
+          consumer_config:
+            security.protocol: PLAINTEXT
+            sasl.mechanism: PLAIN
           authentication:
             type: basic
             params:
               username: test
               password: test
             schema_registry_type: apicurio
-            schema_registry_url: ''
-            schema_registry_username: ''
-            schema_registry_password: ''
+            schema_registry_url: ""
+            schema_registry_username: ""
+            schema_registry_password: ""
         destination:
           name: file
           config:
@@ -432,15 +424,18 @@ jobs:
               max_poll_records: 50
               message_encoding: utf-8
               max_iterations: 5
+              consumer_config:
+                security.protocol: PLAINTEXT
+                sasl.mechanism: PLAIN
               authentication:
                 type: basic
                 params:
                   username: test
                   password: test
                 schema_registry_type: apicurio
-                schema_registry_url: ''
-                schema_registry_username: ''
-                schema_registry_password: ''
+                schema_registry_url: ""
+                schema_registry_username: ""
+                schema_registry_password: ""
             destination:
               name: file
               config:
