@@ -242,7 +242,7 @@ jobs:
             - name: async-test-low-volume
               destination_id: low_volume
           bootstrap_servers: localhost:9092
-          group_id: ci-async-test-group
+          group_id: ci-async-test-group-''' + str(int(time.time())) + '''
           batch_size: 30
           consumer_timeout: 2
           enable_async_polling: true
@@ -424,6 +424,7 @@ jobs:
         
         def run_bizon_test(polling_mode, test_name):
             '''Run bizon with specified polling mode'''
+            import time
             
             test_output_dir = tempfile.mkdtemp(prefix=f'kafka_{polling_mode}_test_')
             print(f'📁 {test_name} output directory: {test_output_dir}')
@@ -442,7 +443,7 @@ jobs:
                 - name: async-test-low-volume
                   destination_id: low_volume
               bootstrap_servers: localhost:9092
-              group_id: ci-{polling_mode}-test-group
+              group_id: ci-{polling_mode}-test-group-{int(time.time())}
               batch_size: 25
               consumer_timeout: 1
               enable_async_polling: {str(enable_async).lower()}
