@@ -67,11 +67,11 @@ jobs:
               CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
         EOF
         
-        docker-compose up -d
+        docker compose up -d
         
         echo "Waiting for container to start..."
         sleep 5
-        docker-compose ps
+        docker compose ps
 
     - name: Wait for Kafka to be ready
       run: |
@@ -79,7 +79,7 @@ jobs:
         
         # Check container logs
         echo "Container logs:"
-        docker-compose logs kafka | tail -20
+        docker compose logs kafka | tail -20
         
         # Wait for Kafka port to be available
         echo "Waiting for Kafka port 9092..."
@@ -91,7 +91,7 @@ jobs:
         
         # Check logs again
         echo "Final container logs:"
-        docker-compose logs kafka | tail -10
+        docker compose logs kafka | tail -10
         echo "Kafka should be ready!"
 
     - name: Install Poetry
@@ -603,7 +603,7 @@ jobs:
       if: always()
       run: |
         echo "🛑 Stopping Kafka container..."
-        docker-compose down || true
+        docker compose down || true
 
     - name: Test Summary
       if: always()
