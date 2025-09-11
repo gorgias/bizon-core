@@ -274,7 +274,8 @@ jobs:
         destination:
           name: file
           config:
-            output_dir: ''' + test_output_dir + '''
+            format: json
+            destination_id: ''' + test_output_dir + '''
             record_schemas:
               - destination_id: high_volume
                 record_schema:
@@ -313,7 +314,8 @@ jobs:
           backend:
             type: sqlite
             config:
-              database_path: ''' + os.path.join(test_output_dir, 'test.db') + '''
+              database: bizon_test
+              schema: public
         '''
         
         # Write config to file
@@ -442,7 +444,8 @@ jobs:
             destination:
               name: file
               config:
-                output_dir: {test_output_dir}
+                format: json
+                destination_id: {test_output_dir}
                 record_schemas:
                   - destination_id: high_volume
                     record_schema:
@@ -466,7 +469,8 @@ jobs:
               backend:
                 type: sqlite
                 config:
-                  database_path: {os.path.join(test_output_dir, 'test.db')}
+                  database: bizon_test
+                  schema: public
             '''
             
             # Write and run config
