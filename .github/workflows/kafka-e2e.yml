@@ -27,42 +27,6 @@ jobs:
     timeout-minutes: 15
 
     services:
-      kafka:
-        image: apache/kafka:3.7.0
-        env:
-          # KRaft mode configuration (no Zookeeper)
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092,PLAINTEXT_HOST://localhost:9092
-          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-          
-          # Replication settings for single broker
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-          KAFKA_NUM_PARTITIONS: 3
-          
-          # Performance settings
-          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-          
-          # Storage configuration
-          KAFKA_LOG_DIRS: /tmp/kafka-logs
-          
-          # Cluster ID for KRaft
-          CLUSTER_ID: test-kafka-cluster-id
-        ports:
-          - 9092:9092
-        options: >-
-          --health-cmd "kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 15
-
       postgres:
         image: postgres:14
         env:
@@ -80,6 +44,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Start Kafka KRaft
+      uses: 280780363/kafka-kraft-action@v1.0.0
+      with:
+        kafka-version: '3.7.0'
+        kafka-port: 9092
+        auto-create-topics: 'true'
 
     - name: Set up Python 3.10
       uses: actions/setup-python@v4
@@ -104,14 +75,9 @@ jobs:
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: poetry install --with test --all-extras
 
-    - name: Wait for Kafka to be ready
-      run: |
-        echo "Waiting for Kafka to be ready..."
-        timeout 120s bash -c 'until echo "test" | nc -z localhost 9092; do sleep 2; done'
-        echo "Kafka is ready!"
-
     - name: Verify Kafka connection
       run: |
+        echo "Verifying Kafka KRaft setup..."
         poetry run python -c "
         from confluent_kafka import Producer
         import time
@@ -119,7 +85,7 @@ jobs:
         producer = Producer({'bootstrap.servers': 'localhost:9092'})
         producer.produce('test-topic', 'test-message')
         producer.flush()
-        print('✅ Kafka connection verified!')
+        print('✅ Kafka KRaft connection verified!')
         "
 
     - name: Create test topics and produce data
