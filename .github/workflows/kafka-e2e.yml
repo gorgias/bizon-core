@@ -254,6 +254,7 @@ jobs:
           consumer_config:
             security.protocol: PLAINTEXT
             sasl.mechanism: PLAIN
+            auto.offset.reset: earliest
           authentication:
             type: basic
             params:
@@ -427,6 +428,7 @@ jobs:
               consumer_config:
                 security.protocol: PLAINTEXT
                 sasl.mechanism: PLAIN
+                auto.offset.reset: earliest
               authentication:
                 type: basic
                 params:
