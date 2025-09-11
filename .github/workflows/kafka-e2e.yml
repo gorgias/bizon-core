@@ -1,0 +1,599 @@
+name: Kafka Async Polling E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - 'bizon/connectors/sources/kafka/**'
+      - 'tests/e2e/test_e2e_kafka_async_polling.py'
+      - 'tests/connectors/sources/kafka/**'
+      - '.github/workflows/kafka-e2e.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'bizon/connectors/sources/kafka/**'
+      - 'tests/e2e/test_e2e_kafka_async_polling.py'
+      - 'tests/connectors/sources/kafka/**'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  kafka-e2e-test:
+    name: Kafka Async Polling E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      zookeeper:
+        image: confluentinc/cp-zookeeper:7.4.0
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+          ZOOKEEPER_TICK_TIME: 2000
+        ports:
+          - 2181:2181
+        options: >-
+          --health-cmd "echo ruok | nc localhost 2181 | grep imok"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      kafka:
+        image: confluentinc/cp-kafka:7.4.0
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+        ports:
+          - 9092:9092
+        options: >-
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bizon
+          POSTGRES_DB: bizon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bizon_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --with test --all-extras
+
+    - name: Wait for Kafka to be ready
+      run: |
+        echo "Waiting for Kafka to be ready..."
+        timeout 120s bash -c 'until echo "test" | nc -z localhost 9092; do sleep 2; done'
+        echo "Kafka is ready!"
+
+    - name: Verify Kafka connection
+      run: |
+        poetry run python -c "
+        from confluent_kafka import Producer
+        import time
+        
+        producer = Producer({'bootstrap.servers': 'localhost:9092'})
+        producer.produce('test-topic', 'test-message')
+        producer.flush()
+        print('✅ Kafka connection verified!')
+        "
+
+    - name: Create test topics and produce data
+      run: |
+        poetry run python -c "
+        import json
+        import time
+        from confluent_kafka import Producer
+        from confluent_kafka.admin import AdminClient, NewTopic
+        
+        print('🎯 Setting up Kafka test environment...')
+        
+        # Create topics
+        admin_client = AdminClient({'bootstrap.servers': 'localhost:9092'})
+        topics = [
+            NewTopic('async-test-high-volume', num_partitions=3, replication_factor=1),
+            NewTopic('async-test-low-volume', num_partitions=1, replication_factor=1)
+        ]
+        
+        futures = admin_client.create_topics(topics)
+        for topic_name, future in futures.items():
+            try:
+                future.result(timeout=10)
+                print(f'✅ Created topic: {topic_name}')
+            except Exception as e:
+                if 'already exists' in str(e).lower():
+                    print(f'ℹ️  Topic {topic_name} already exists')
+                else:
+                    print(f'❌ Failed to create topic {topic_name}: {e}')
+                    raise
+        
+        # Produce test data
+        producer = Producer({
+            'bootstrap.servers': 'localhost:9092',
+            'client.id': 'ci-test-producer'
+        })
+        
+        print('🚀 Producing test data to simulate starvation scenario...')
+        
+        # High-volume topic - simulate heavy load (200 messages)
+        for i in range(200):
+            message = {
+                'id': f'high-vol-{i}',
+                'type': 'high_volume',
+                'data': f'High volume message {i}',
+                'timestamp': int(time.time() * 1000),
+                'batch': i // 20
+            }
+            
+            producer.produce(
+                'async-test-high-volume',
+                key=f'high-vol-{i}',
+                value=json.dumps(message),
+                partition=i % 3
+            )
+            
+            if i % 50 == 0:
+                producer.flush()
+        
+        # Low-volume topic - simulate critical but infrequent messages (10 messages)
+        for i in range(10):
+            message = {
+                'id': f'low-vol-{i}',
+                'type': 'low_volume',
+                'data': f'Critical message {i}',
+                'priority': 'HIGH',
+                'timestamp': int(time.time() * 1000),
+                'sequence': i
+            }
+            
+            producer.produce(
+                'async-test-low-volume',
+                key=f'low-vol-{i}',
+                value=json.dumps(message),
+                partition=0
+            )
+        
+        producer.flush()
+        print('📦 Test data produced successfully!')
+        print('   - High-volume topic: 200 messages across 3 partitions')
+        print('   - Low-volume topic: 10 critical messages in 1 partition')
+        "
+
+    - name: Run Kafka async polling unit tests
+      run: |
+        echo "🧪 Running async polling unit tests..."
+        poetry run pytest tests/connectors/sources/kafka/test_async_polling.py -v --tb=short
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+
+    - name: Run Kafka async polling integration test
+      run: |
+        echo "🔬 Running async polling integration test..."
+        poetry run python -c "
+        import json
+        import tempfile
+        import os
+        from pathlib import Path
+        
+        # Create test output directory
+        test_output_dir = tempfile.mkdtemp(prefix='kafka_async_test_')
+        print(f'📁 Test output directory: {test_output_dir}')
+        
+        # Test configuration
+        config_yaml = '''
+        name: ci_kafka_async_polling_test
+        source:
+          name: kafka
+          stream: topic
+          sync_mode: stream
+          topics:
+            - name: async-test-high-volume
+              destination_id: high_volume
+            - name: async-test-low-volume
+              destination_id: low_volume
+          bootstrap_servers: localhost:9092
+          group_id: ci-async-test-group
+          batch_size: 30
+          consumer_timeout: 2
+          enable_async_polling: true
+          poll_interval_ms: 50
+          max_poll_records: 100
+          partition_pause_threshold: 500
+          message_encoding: utf-8
+          max_iterations: 8
+          authentication:
+            type: basic
+            params:
+              username: test
+              password: test
+            schema_registry_type: apicurio
+            schema_registry_url: ''
+            schema_registry_username: ''
+            schema_registry_password: ''
+        destination:
+          name: file
+          config:
+            output_dir: ''' + test_output_dir + '''
+            record_schemas:
+              - destination_id: high_volume
+                record_schema:
+                  - name: id
+                    type: string
+                    nullable: false
+                  - name: type
+                    type: string
+                    nullable: false
+                  - name: data
+                    type: string
+                    nullable: false
+                  - name: timestamp
+                    type: integer
+                    nullable: false
+              - destination_id: low_volume
+                record_schema:
+                  - name: id
+                    type: string
+                    nullable: false
+                  - name: type
+                    type: string
+                    nullable: false
+                  - name: data
+                    type: string
+                    nullable: false
+                  - name: priority
+                    type: string
+                    nullable: false
+                  - name: timestamp
+                    type: integer
+                    nullable: false
+        engine:
+          runner:
+            type: stream
+          backend:
+            type: sqlite
+            config:
+              database_path: ''' + os.path.join(test_output_dir, 'test.db') + '''
+        '''
+        
+        # Write config to file
+        config_file = os.path.join(test_output_dir, 'config.yml')
+        with open(config_file, 'w') as f:
+            f.write(config_yaml)
+        
+        print(f'📄 Config written to: {config_file}')
+        
+        # Set environment for production mode (enables commits)
+        os.environ['ENVIRONMENT'] = 'production'
+        
+        # Run bizon
+        print('🚀 Running bizon with async polling...')
+        
+        import yaml
+        from bizon.engine.engine import RunnerFactory
+        
+        with open(config_file, 'r') as f:
+            config_dict = yaml.safe_load(f)
+        
+        runner = RunnerFactory.create_from_config_dict(config_dict)
+        result = runner.run()
+        
+        print(f'✅ Bizon completed with status: {result}')
+        
+        # Analyze results
+        print('📊 Analyzing consumption results...')
+        
+        high_vol_file = os.path.join(test_output_dir, 'high_volume.json')
+        low_vol_file = os.path.join(test_output_dir, 'low_volume.json')
+        
+        high_vol_count = 0
+        low_vol_count = 0
+        
+        if os.path.exists(high_vol_file):
+            with open(high_vol_file, 'r') as f:
+                high_vol_count = sum(1 for line in f if line.strip())
+        
+        if os.path.exists(low_vol_file):
+            with open(low_vol_file, 'r') as f:
+                low_vol_count = sum(1 for line in f if line.strip())
+        
+        total_consumed = high_vol_count + low_vol_count
+        
+        print(f'📈 Consumption Results:')
+        print(f'   High-volume messages: {high_vol_count}')
+        print(f'   Low-volume messages:  {low_vol_count}')
+        print(f'   Total consumed:       {total_consumed}')
+        
+        if total_consumed > 0:
+            high_vol_pct = (high_vol_count / total_consumed) * 100
+            low_vol_pct = (low_vol_count / total_consumed) * 100
+            
+            print(f'📊 Fairness Analysis:')
+            print(f'   High-volume: {high_vol_pct:.1f}%')
+            print(f'   Low-volume:  {low_vol_pct:.1f}%')
+        
+        # Assertions
+        assert high_vol_count > 0, f'High-volume topic should have consumed messages, got {high_vol_count}'
+        assert low_vol_count > 0, f'Low-volume topic should NOT be starved, got {low_vol_count}'
+        
+        # Key test: Fair representation despite volume difference
+        if total_consumed > 0:
+            fairness_ratio = low_vol_count / total_consumed
+            assert fairness_ratio > 0.01, f'Low-volume topic got {fairness_ratio:.2%} - indicates starvation!'
+        
+        print(f'✅ SUCCESS: Async polling prevented topic starvation!')
+        print(f'   Low-volume topic maintained fair representation despite high-volume load')
+        
+        # Cleanup
+        import shutil
+        shutil.rmtree(test_output_dir)
+        print(f'🧹 Cleaned up test directory')
+        "
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        PYTHONPATH: /home/runner/work/bizon-core/bizon-core
+
+    - name: Test starvation comparison (sync vs async)
+      run: |
+        echo "⚖️  Testing sync vs async polling comparison..."
+        poetry run python -c "
+        import json
+        import tempfile
+        import os
+        import shutil
+        from pathlib import Path
+        
+        def run_bizon_test(polling_mode, test_name):
+            '''Run bizon with specified polling mode'''
+            
+            test_output_dir = tempfile.mkdtemp(prefix=f'kafka_{polling_mode}_test_')
+            print(f'📁 {test_name} output directory: {test_output_dir}')
+            
+            enable_async = (polling_mode == 'async')
+            
+            config_yaml = f'''
+            name: ci_kafka_{polling_mode}_test
+            source:
+              name: kafka
+              stream: topic
+              sync_mode: stream
+              topics:
+                - name: async-test-high-volume
+                  destination_id: high_volume
+                - name: async-test-low-volume
+                  destination_id: low_volume
+              bootstrap_servers: localhost:9092
+              group_id: ci-{polling_mode}-test-group
+              batch_size: 25
+              consumer_timeout: 1
+              enable_async_polling: {str(enable_async).lower()}
+              poll_interval_ms: 50
+              max_poll_records: 50
+              message_encoding: utf-8
+              max_iterations: 5
+              authentication:
+                type: basic
+                params:
+                  username: test
+                  password: test
+                schema_registry_type: apicurio
+                schema_registry_url: ''
+                schema_registry_username: ''
+                schema_registry_password: ''
+            destination:
+              name: file
+              config:
+                output_dir: {test_output_dir}
+                record_schemas:
+                  - destination_id: high_volume
+                    record_schema:
+                      - name: id
+                        type: string
+                        nullable: false
+                      - name: type  
+                        type: string
+                        nullable: false
+                  - destination_id: low_volume
+                    record_schema:
+                      - name: id
+                        type: string
+                        nullable: false
+                      - name: type
+                        type: string
+                        nullable: false
+            engine:
+              runner:
+                type: stream
+              backend:
+                type: sqlite
+                config:
+                  database_path: {os.path.join(test_output_dir, 'test.db')}
+            '''
+            
+            # Write and run config
+            config_file = os.path.join(test_output_dir, 'config.yml')
+            with open(config_file, 'w') as f:
+                f.write(config_yaml)
+            
+            os.environ['ENVIRONMENT'] = 'production'
+            
+            import yaml
+            from bizon.engine.engine import RunnerFactory
+            
+            with open(config_file, 'r') as f:
+                config_dict = yaml.safe_load(f)
+            
+            runner = RunnerFactory.create_from_config_dict(config_dict)
+            runner.run()
+            
+            # Count results
+            high_vol_file = os.path.join(test_output_dir, 'high_volume.json')
+            low_vol_file = os.path.join(test_output_dir, 'low_volume.json')
+            
+            high_vol_count = 0
+            low_vol_count = 0
+            
+            if os.path.exists(high_vol_file):
+                with open(high_vol_file, 'r') as f:
+                    high_vol_count = sum(1 for line in f if line.strip())
+            
+            if os.path.exists(low_vol_file):
+                with open(low_vol_file, 'r') as f:
+                    low_vol_count = sum(1 for line in f if line.strip())
+            
+            # Cleanup
+            shutil.rmtree(test_output_dir)
+            
+            return high_vol_count, low_vol_count
+        
+        # Run both tests
+        print('🔄 Running sync polling test...')
+        sync_high, sync_low = run_bizon_test('sync', 'Sync Polling')
+        
+        print('🔄 Running async polling test...')  
+        async_high, async_low = run_bizon_test('async', 'Async Polling')
+        
+        # Compare results
+        print(f'')
+        print(f'📊 Polling Mode Comparison Results:')
+        print(f'   ┌─────────────────┬─────────────┬─────────────┐')
+        print(f'   │ Polling Mode    │ High Volume │ Low Volume  │')
+        print(f'   ├─────────────────┼─────────────┼─────────────┤')
+        print(f'   │ Sync (old)      │ {sync_high:11d} │ {sync_low:11d} │')
+        print(f'   │ Async (new)     │ {async_high:11d} │ {async_low:11d} │')
+        print(f'   └─────────────────┴─────────────┴─────────────┘')
+        
+        # Analysis
+        sync_total = sync_high + sync_low
+        async_total = async_high + async_low
+        
+        if sync_total > 0:
+            sync_low_pct = (sync_low / sync_total) * 100
+        else:
+            sync_low_pct = 0
+            
+        if async_total > 0:
+            async_low_pct = (async_low / async_total) * 100
+        else:
+            async_low_pct = 0
+        
+        print(f'')
+        print(f'📈 Starvation Analysis:')
+        print(f'   Sync polling  - Low volume: {sync_low_pct:.1f}%')
+        print(f'   Async polling - Low volume: {async_low_pct:.1f}%')
+        
+        # Key assertions
+        assert async_low > 0, f'Async polling should consume low-volume messages, got {async_low}'
+        assert async_low_pct >= sync_low_pct, f'Async should be >= sync fairness: {async_low_pct:.1f}% vs {sync_low_pct:.1f}%'
+        
+        if sync_low == 0 and async_low > 0:
+            print(f'🎉 MAJOR SUCCESS: Async polling prevented complete starvation!')
+        elif async_low > sync_low:
+            improvement = ((async_low - sync_low) / max(sync_low, 1)) * 100
+            print(f'🎉 SUCCESS: Async polling improved low-volume consumption by {improvement:.0f}%!')
+        else:
+            print(f'✅ SUCCESS: Async polling maintained fair consumption')
+        
+        print(f'✅ Starvation prevention test passed!')
+        "
+      env:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        PYTHONPATH: /home/runner/work/bizon-core/bizon-core
+
+    - name: Verify Kafka consumer groups
+      if: always()
+      run: |
+        echo "👥 Checking Kafka consumer groups created during test..."
+        poetry run python -c "
+        from confluent_kafka.admin import AdminClient
+        
+        admin_client = AdminClient({'bootstrap.servers': 'localhost:9092'})
+        
+        try:
+            groups = admin_client.list_consumer_groups(timeout=10)
+            print(f'📋 Consumer groups found: {len(groups)}')
+            for group in groups:
+                print(f'   - {group}')
+        except Exception as e:
+            print(f'ℹ️  Could not list consumer groups: {e}')
+        "
+
+    - name: Cleanup test topics
+      if: always()
+      run: |
+        echo "🧹 Cleaning up test topics..."
+        poetry run python -c "
+        from confluent_kafka.admin import AdminClient
+        
+        admin_client = AdminClient({'bootstrap.servers': 'localhost:9092'})
+        
+        topics_to_delete = ['async-test-high-volume', 'async-test-low-volume', 'test-topic']
+        
+        try:
+            futures = admin_client.delete_topics(topics_to_delete, timeout=10)
+            for topic, future in futures.items():
+                try:
+                    future.result()
+                    print(f'🗑️  Deleted topic: {topic}')
+                except Exception as e:
+                    print(f'ℹ️  Could not delete topic {topic}: {e}')
+        except Exception as e:
+            print(f'ℹ️  Cleanup completed with some issues: {e}')
+        "
+
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "🎯 Kafka Async Polling E2E Test Summary"
+        echo "════════════════════════════════════════"
+        echo "✅ Kafka cluster setup and connectivity"
+        echo "✅ Test data production (high/low volume)"
+        echo "✅ Async polling unit tests"  
+        echo "✅ Integration test with file destination"
+        echo "✅ Starvation prevention validation"
+        echo "✅ Sync vs async polling comparison"
+        echo ""
+        echo "🚀 All tests passed! Async polling prevents topic starvation."

@@ -34,8 +34,13 @@ def default_kafka_consumer_config():
     return {
         "auto.offset.reset": "earliest",
         "enable.auto.commit": False,  # Turn off auto-commit for manual offset handling
+        "enable.auto.offset.store": False,  # Manual offset storage for precise control
         "session.timeout.ms": 45000,
         "security.protocol": "SASL_SSL",
+        "partition.assignment.strategy": "cooperative-sticky",  # Fair partition distribution
+        "fetch.min.bytes": 1,  # Return small batches to prevent starvation
+        "fetch.wait.max.ms": 100,  # Don't wait too long for small topics
+        "queued.max.messages.kbytes": 262144,  # Limit prefetch to prevent hot partition dominance
     }
 
 
@@ -65,5 +70,15 @@ class KafkaSourceConfig(SourceConfig):
     )
 
     message_encoding: str = Field(default=MessageEncoding.AVRO, description="Encoding to use to decode the message")
+
+    # Fair polling configuration
+    enable_async_polling: bool = Field(
+        default=True, description="Enable async polling to prevent starvation of low-volume topics"
+    )
+    poll_interval_ms: int = Field(default=50, description="Polling interval in milliseconds for the async poller")
+    max_poll_records: int = Field(default=500, description="Maximum records to consume per poll to maintain fairness")
+    partition_pause_threshold: int = Field(
+        default=1000, description="Pause hot partitions after this many unprocessed messages to ensure fairness"
+    )
 
     authentication: KafkaAuthConfig = Field(..., description="Authentication configuration")

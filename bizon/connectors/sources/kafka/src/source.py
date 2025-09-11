@@ -1,3 +1,4 @@
+import time
 import traceback
 from datetime import datetime
 from functools import lru_cache
@@ -23,6 +24,7 @@ from bizon.source.config import SourceSyncModes
 from bizon.source.models import SourceIteration, SourceRecord
 from bizon.source.source import AbstractSource
 
+from .async_poller import AsyncKafkaPoller
 from .callback import KafkaSourceCallback
 from .config import KafkaSourceConfig, MessageEncoding, SchemaRegistryType
 from .decode import (
@@ -82,6 +84,12 @@ class KafkaSource(AbstractSource):
         # Map topic_name to destination_id
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
 
+        # Initialize async poller if enabled
+        self.async_poller = None
+        self.current_messages = []  # Store current batch of messages for commit tracking
+        if self.config.enable_async_polling and self.config.sync_mode == SourceSyncModes.STREAM:
+            self.async_poller = AsyncKafkaPoller(self.consumer, self.config)
+
     @staticmethod
     def streams() -> List[str]:
         return ["topic"]
@@ -96,7 +104,7 @@ class KafkaSource(AbstractSource):
         return KafkaSourceConfig
 
     def get_source_callback_instance(self) -> AbstractSourceCallback:
-        """Return an instance of the source callback, used to commit the offsets of the iterations"""
+        """Return an instance of the source callback"""
         return KafkaSourceCallback(config=self.config)
 
     def check_connection(self) -> Tuple[bool | Any | None]:
@@ -355,11 +363,58 @@ class KafkaSource(AbstractSource):
         """Read the topics with the subscribe method, pagination will not be used
         We rely on Kafka to get assigned to the partitions and get the offsets
         """
+        if self.config.enable_async_polling and self.async_poller:
+            return self._read_topics_async(pagination)
+        else:
+            return self._read_topics_sync(pagination)
+
+    def _read_topics_sync(self, pagination: dict = None) -> SourceIteration:
+        """Traditional synchronous polling - can lead to starvation"""
         topics = [topic.name for topic in self.config.topics]
         self.consumer.subscribe(topics)
         t1 = datetime.now()
         encoded_messages = self.consumer.consume(self.config.batch_size, timeout=self.config.consumer_timeout)
         logger.info(f"Kafka consumer read : {len(encoded_messages)} messages in {datetime.now() - t1}")
+        records = self.parse_encoded_messages(encoded_messages)
+        return SourceIteration(
+            next_pagination={},
+            records=records,
+        )
+
+    def _read_topics_async(self, pagination: dict = None) -> SourceIteration:
+        """Async polling with fairness guarantees to prevent starvation of low-volume topics"""
+
+        # Start async poller if not already running
+        if not self.async_poller.running:
+            topics = [topic.name for topic in self.config.topics]
+
+            # Set up rebalance callbacks for proper offset management
+            self.consumer.subscribe(
+                topics, on_assign=self.async_poller.on_assign, on_revoke=self.async_poller.on_revoke
+            )
+
+            # Start the background polling thread
+            self.async_poller.start()
+            logger.info("Started async Kafka poller for fair topic consumption")
+
+        # Get messages from the async poller's fair queues
+        t1 = datetime.now()
+        encoded_messages = self.async_poller.get_messages(max_messages=self.config.batch_size)
+
+        # Store messages for commit tracking after successful destination write
+        self.current_messages = encoded_messages.copy()
+
+        # Add small delay if no messages to prevent busy waiting
+        if not encoded_messages:
+            time.sleep(0.1)  # 100ms backoff when no messages available
+
+        logger.info(f"Async poller provided: {len(encoded_messages)} messages in {datetime.now() - t1}")
+
+        # Log async poller stats periodically
+        if self.async_poller.poll_count % 1000 == 0:
+            stats = self.async_poller.get_stats()
+            logger.info(f"Async poller stats: {stats}")
+
         records = self.parse_encoded_messages(encoded_messages)
         return SourceIteration(
             next_pagination={},
@@ -373,9 +428,37 @@ class KafkaSource(AbstractSource):
             return self.read_topics_manually(pagination)
 
     def commit(self):
-        """Commit the offsets of the consumer"""
+        """Commit the offsets of the consumer - only for messages successfully written to destination"""
         try:
-            self.consumer.commit(asynchronous=False)
+            if self.async_poller and self.config.enable_async_polling:
+                # First, mark current messages as completed since destination write succeeded
+                if self.current_messages:
+                    self.async_poller.mark_messages_completed(self.current_messages)
+                    logger.debug(
+                        f"Marked {len(self.current_messages)} messages as completed after successful destination write"
+                    )
+
+                    # Clear the current messages batch
+                    self.current_messages = []
+
+                # Get safe commit offsets (only contiguous completed ranges)
+                commit_offsets = self.async_poller.get_commit_offsets()
+                if commit_offsets:
+                    self.consumer.commit(offsets=commit_offsets, asynchronous=False)
+                    logger.debug(f"Committed {len(commit_offsets)} offsets for successfully processed messages")
+            else:
+                # Traditional commit in sync mode
+                self.consumer.commit(asynchronous=False)
         except CimplKafkaException as e:
             logger.error(f"Kafka exception occurred during commit: {e}")
             logger.info("Gracefully exiting without committing offsets due to Kafka exception")
+
+    def close(self):
+        """Clean up resources and shut down async poller"""
+        if self.async_poller:
+            logger.info("Shutting down async Kafka poller")
+            self.async_poller.stop()
+
+        if self.consumer:
+            logger.info("Closing Kafka consumer")
+            self.consumer.close()
