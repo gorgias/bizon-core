@@ -268,7 +268,7 @@ jobs:
           name: file
           config:
             format: json
-            destination_id: ''' + test_output_dir + '''
+            destination_id: kafka_test
             record_schemas:
               - destination_id: high_volume
                 record_schema:
@@ -338,7 +338,7 @@ jobs:
         # Analyze results
         print('📊 Analyzing consumption results...')
         
-        # List all files in output directory
+        # List all files in both output directory and current working directory
         print(f'📁 Files in {test_output_dir}:')
         for file in os.listdir(test_output_dir):
             file_path = os.path.join(test_output_dir, file)
@@ -346,8 +346,15 @@ jobs:
                 size = os.path.getsize(file_path)
                 print(f'   - {file} ({size} bytes)')
         
-        high_vol_file = os.path.join(test_output_dir, 'high_volume.json')
-        low_vol_file = os.path.join(test_output_dir, 'low_volume.json')
+        print(f'📁 Files in current working directory:')
+        for file in os.listdir('.'):
+            if os.path.isfile(file):
+                size = os.path.getsize(file)
+                print(f'   - {file} ({size} bytes)')
+        
+        # Look for files in current directory (where file destination writes)
+        high_vol_file = 'kafka_test.json'  # Based on destination_id
+        low_vol_file = 'low_volume.json'   # If separate files are created per destination_id
         
         high_vol_count = 0
         low_vol_count = 0
@@ -454,7 +461,7 @@ jobs:
               name: file
               config:
                 format: json
-                destination_id: {test_output_dir}
+                destination_id: kafka_comparison_test
                 record_schemas:
                   - destination_id: high_volume
                     record_schema:
@@ -506,8 +513,14 @@ jobs:
                     size = os.path.getsize(file_path)
                     print(f'   - {file} ({size} bytes)')
             
-            high_vol_file = os.path.join(test_output_dir, 'high_volume.json')
-            low_vol_file = os.path.join(test_output_dir, 'low_volume.json')
+            print(f'📁 Files in current working directory:')
+            for file in os.listdir('.'):
+                if os.path.isfile(file):
+                    size = os.path.getsize(file)
+                    print(f'   - {file} ({size} bytes)')
+            
+            high_vol_file = 'kafka_comparison_test.json'
+            low_vol_file = 'low_volume.json'
             
             high_vol_count = 0
             low_vol_count = 0
