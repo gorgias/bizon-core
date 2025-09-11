@@ -180,7 +180,7 @@ jobs:
             
             producer.produce(
                 'async-test-high-volume',
-                key=f'high-vol-{i}',
+                key=json.dumps(f'high-vol-{i}'),
                 value=json.dumps(message),
                 partition=i % 3
             )
@@ -200,7 +200,7 @@ jobs:
             
             producer.produce(
                 'async-test-low-volume',
-                key=f'low-vol-{i}',
+                key=json.dumps(f'low-vol-{i}'),
                 value=json.dumps(message),
                 partition=0
             )
