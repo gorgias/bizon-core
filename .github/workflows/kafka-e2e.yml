@@ -338,6 +338,14 @@ jobs:
         # Analyze results
         print('📊 Analyzing consumption results...')
         
+        # List all files in output directory
+        print(f'📁 Files in {test_output_dir}:')
+        for file in os.listdir(test_output_dir):
+            file_path = os.path.join(test_output_dir, file)
+            if os.path.isfile(file_path):
+                size = os.path.getsize(file_path)
+                print(f'   - {file} ({size} bytes)')
+        
         high_vol_file = os.path.join(test_output_dir, 'high_volume.json')
         low_vol_file = os.path.join(test_output_dir, 'low_volume.json')
         
@@ -347,10 +355,14 @@ jobs:
         if os.path.exists(high_vol_file):
             with open(high_vol_file, 'r') as f:
                 high_vol_count = sum(1 for line in f if line.strip())
+        else:
+            print(f'❌ {high_vol_file} does not exist')
         
         if os.path.exists(low_vol_file):
             with open(low_vol_file, 'r') as f:
                 low_vol_count = sum(1 for line in f if line.strip())
+        else:
+            print(f'❌ {low_vol_file} does not exist')
         
         total_consumed = high_vol_count + low_vol_count
         
@@ -486,7 +498,14 @@ jobs:
             runner = RunnerFactory.create_from_config_dict(config_dict)
             runner.run()
             
-            # Count results
+            # Count results  
+            print(f'📁 Files in {test_output_dir}:')
+            for file in os.listdir(test_output_dir):
+                file_path = os.path.join(test_output_dir, file)
+                if os.path.isfile(file_path):
+                    size = os.path.getsize(file_path)
+                    print(f'   - {file} ({size} bytes)')
+            
             high_vol_file = os.path.join(test_output_dir, 'high_volume.json')
             low_vol_file = os.path.join(test_output_dir, 'low_volume.json')
             
