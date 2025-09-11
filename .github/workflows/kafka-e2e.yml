@@ -31,13 +31,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Kafka KRaft
-      uses: spicyparrot/kafka-kraft-action@v1.1.3
-
     - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+
+    - name: Start Redpanda
+      uses: redpanda-data/github-action@v0.1.3
+      with:
+        version: "latest"
 
     - name: Install Poetry
       uses: snok/install-poetry@v1
@@ -57,9 +59,9 @@ jobs:
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: poetry install --with test --all-extras
 
-    - name: Verify Kafka connection
+    - name: Verify Redpanda connection
       run: |
-        echo "Verifying Kafka KRaft setup..."
+        echo "Verifying Redpanda (Kafka-compatible) setup..."
         poetry run python -c "
         from confluent_kafka import Producer
         import time
@@ -67,7 +69,7 @@ jobs:
         producer = Producer({'bootstrap.servers': 'localhost:9092'})
         producer.produce('test-topic', 'test-message')
         producer.flush()
-        print('✅ Kafka KRaft connection verified!')
+        print('✅ Redpanda connection verified!')
         "
 
     - name: Create test topics and produce data
@@ -78,7 +80,7 @@ jobs:
         from confluent_kafka import Producer
         from confluent_kafka.admin import AdminClient, NewTopic
         
-        print('🎯 Setting up Kafka test environment...')
+        print('🎯 Setting up Redpanda test environment...')
         
         # Create topics
         admin_client = AdminClient({'bootstrap.servers': 'localhost:9092'})
@@ -487,10 +489,10 @@ jobs:
       env:
         PYTHONPATH: /home/runner/work/bizon-core/bizon-core
 
-    - name: Verify Kafka consumer groups
+    - name: Verify Redpanda consumer groups
       if: always()
       run: |
-        echo "👥 Checking Kafka consumer groups created during test..."
+        echo "👥 Checking Redpanda consumer groups created during test..."
         poetry run python -c "
         from confluent_kafka.admin import AdminClient
         
@@ -533,7 +535,7 @@ jobs:
       run: |
         echo "🎯 Kafka Async Polling E2E Test Summary"
         echo "════════════════════════════════════════"
-        echo "✅ Kafka cluster setup and connectivity"
+        echo "✅ Redpanda cluster setup and connectivity"
         echo "✅ Test data production (high/low volume)"
         echo "✅ Async polling unit tests"  
         echo "✅ Integration test with file destination"
