@@ -26,20 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    services:
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: bizon
-          POSTGRES_DB: bizon_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d bizon_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
 
     steps:
     - name: Checkout code
@@ -169,9 +155,6 @@ jobs:
       run: |
         echo "🧪 Running async polling unit tests..."
         poetry run pytest tests/connectors/sources/kafka/test_async_polling.py -v --tb=short
-      env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
 
     - name: Run Kafka async polling integration test
       run: |
@@ -336,8 +319,6 @@ jobs:
         print(f'🧹 Cleaned up test directory')
         "
       env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
         PYTHONPATH: /home/runner/work/bizon-core/bizon-core
 
     - name: Test starvation comparison (sync vs async)
@@ -504,8 +485,6 @@ jobs:
         print(f'✅ Starvation prevention test passed!')
         "
       env:
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
         PYTHONPATH: /home/runner/work/bizon-core/bizon-core
 
     - name: Verify Kafka consumer groups
