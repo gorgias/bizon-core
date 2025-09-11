@@ -260,9 +260,9 @@ jobs:
               username: test
               password: test
             schema_registry_type: apicurio
-            schema_registry_url: ""
-            schema_registry_username: ""
-            schema_registry_password: ""
+            schema_registry_url: "http://localhost:8081"
+            schema_registry_username: "test"
+            schema_registry_password: "test"
         destination:
           name: file
           config:
@@ -433,9 +433,9 @@ jobs:
                   username: test
                   password: test
                 schema_registry_type: apicurio
-                schema_registry_url: ""
-                schema_registry_username: ""
-                schema_registry_password: ""
+                schema_registry_url: "http://localhost:8081"
+                schema_registry_username: "test"
+                schema_registry_password: "test"
             destination:
               name: file
               config:
