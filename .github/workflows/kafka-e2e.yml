@@ -36,36 +36,45 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Start Redpanda
+    - name: Start Kafka KRaft
       run: |
-        echo "Starting Redpanda container..."
+        echo "Starting Kafka in KRaft mode..."
         docker run -d \
-          --name redpanda \
+          --name kafka \
           -p 9092:9092 \
-          -p 9644:9644 \
-          docker.redpanda.com/redpandadata/redpanda:latest \
-          redpanda start \
-          --node-id 0 \
-          --mode dev-container \
-          --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092 \
-          --advertise-kafka-addr internal://redpanda:9092,external://localhost:9092 \
-          --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082 \
-          --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:8082 \
-          --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081 \
-          --rpc-addr redpanda:33145 \
-          --advertise-rpc-addr redpanda:33145 \
-          --smp 1 \
-          --memory 1G \
-          --reserve-memory 0M \
-          --overprovisioned \
-          --set redpanda.empty_seed_starts_cluster=false \
-          --set redpanda.auto_create_topics_enabled=true
+          -e KAFKA_NODE_ID=1 \
+          -e KAFKA_PROCESS_ROLES=broker,controller \
+          -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+          -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT \
+          -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+          -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+          -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+          -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+          -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+          -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+          -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=true \
+          -e CLUSTER_ID=test-kafka-cluster \
+          apache/kafka:2.13-3.7.0 \
+          sh -c "kafka-storage.sh format --config /opt/kafka/config/kraft/server.properties --cluster-id test-kafka-cluster --ignore-formatted && kafka-server-start.sh /opt/kafka/config/kraft/server.properties"
 
-    - name: Wait for Redpanda to be ready
+    - name: Wait for Kafka to be ready
       run: |
-        echo "Waiting for Redpanda to be ready..."
-        timeout 60s bash -c 'until docker exec redpanda rpk cluster info; do sleep 2; done'
-        echo "Redpanda is ready!"
+        echo "Waiting for Kafka to be ready..."
+        
+        # Wait for container to be running
+        for i in {1..30}; do
+          if docker ps | grep -q kafka; then
+            echo "Container is running"
+            break
+          fi
+          echo "Waiting for container to start... ($i/30)"
+          sleep 2
+        done
+        
+        # Wait for Kafka API to be ready
+        echo "Waiting for Kafka API..."
+        timeout 60s bash -c 'until nc -z localhost 9092; do sleep 2; done'
+        echo "Kafka is ready!"
 
     - name: Install Poetry
       uses: snok/install-poetry@v1
@@ -85,9 +94,9 @@ jobs:
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: poetry install --with test --all-extras
 
-    - name: Verify Redpanda connection
+    - name: Verify Kafka connection
       run: |
-        echo "Verifying Redpanda (Kafka-compatible) setup..."
+        echo "Verifying Kafka KRaft setup..."
         poetry run python -c "
         from confluent_kafka import Producer
         import time
@@ -95,7 +104,7 @@ jobs:
         producer = Producer({'bootstrap.servers': 'localhost:9092'})
         producer.produce('test-topic', 'test-message')
         producer.flush()
-        print('✅ Redpanda connection verified!')
+        print('✅ Kafka connection verified!')
         "
 
     - name: Create test topics and produce data
@@ -106,7 +115,7 @@ jobs:
         from confluent_kafka import Producer
         from confluent_kafka.admin import AdminClient, NewTopic
         
-        print('🎯 Setting up Redpanda test environment...')
+        print('🎯 Setting up Kafka test environment...')
         
         # Create topics
         admin_client = AdminClient({'bootstrap.servers': 'localhost:9092'})
@@ -515,10 +524,10 @@ jobs:
       env:
         PYTHONPATH: /home/runner/work/bizon-core/bizon-core
 
-    - name: Verify Redpanda consumer groups
+    - name: Verify Kafka consumer groups
       if: always()
       run: |
-        echo "👥 Checking Redpanda consumer groups created during test..."
+        echo "👥 Checking Kafka consumer groups created during test..."
         poetry run python -c "
         from confluent_kafka.admin import AdminClient
         
@@ -556,19 +565,19 @@ jobs:
             print(f'ℹ️  Cleanup completed with some issues: {e}')
         "
 
-    - name: Stop Redpanda container
+    - name: Stop Kafka container
       if: always()
       run: |
-        echo "🛑 Stopping Redpanda container..."
-        docker stop redpanda || true
-        docker rm redpanda || true
+        echo "🛑 Stopping Kafka container..."
+        docker stop kafka || true
+        docker rm kafka || true
 
     - name: Test Summary
       if: always()
       run: |
         echo "🎯 Kafka Async Polling E2E Test Summary"
         echo "════════════════════════════════════════"
-        echo "✅ Redpanda cluster setup and connectivity"
+        echo "✅ Kafka KRaft cluster setup and connectivity"
         echo "✅ Test data production (high/low volume)"
         echo "✅ Async polling unit tests"  
         echo "✅ Integration test with file destination"
