@@ -45,12 +45,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Start Kafka KRaft
-      uses: 280780363/kafka-kraft-action@v1.0.0
-      with:
-        kafka-version: '3.7.0'
-        kafka-port: 9092
-        auto-create-topics: 'true'
+    - name: Kafka KRaft
+      uses: spicyparrot/kafka-kraft-action@v1.1.3
 
     - name: Set up Python 3.10
       uses: actions/setup-python@v4
