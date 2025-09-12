@@ -1,0 +1,78 @@
+name: async_kafka_polling_test
+source:
+  name: kafka
+  stream: topic
+  sync_mode: stream
+  topics:
+    - name: async-test-high-volume
+      destination_id: high_volume
+    - name: async-test-low-volume
+      destination_id: low_volume
+  bootstrap_servers: localhost:9092
+  group_id: async-test-group-123456
+  batch_size: 30
+  consumer_timeout: 2
+  enable_async_polling: true   # ENABLED - New async polling
+  poll_interval_ms: 50
+  max_poll_records: 100
+  partition_pause_threshold: 500
+  message_encoding: utf-8
+  max_iterations: 6
+  consumer_config:
+    security.protocol: PLAINTEXT
+    sasl.mechanism: PLAIN
+    auto.offset.reset: earliest
+  authentication:
+    type: basic
+    params:
+      username: test
+      password: test
+    schema_registry_type: apicurio
+    schema_registry_url: "http://localhost:8081"
+    schema_registry_username: "test"
+    schema_registry_password: "test"
+destination:
+  name: file
+  config:
+    format: json
+    destination_id: kafka_test
+    record_schemas:
+      - destination_id: high_volume
+        record_schema:
+          - name: id
+            type: string
+            nullable: false
+          - name: type
+            type: string
+            nullable: false
+          - name: data
+            type: string
+            nullable: false
+          - name: timestamp
+            type: integer
+            nullable: false
+      - destination_id: low_volume
+        record_schema:
+          - name: id
+            type: string
+            nullable: false
+          - name: type
+            type: string
+            nullable: false
+          - name: data
+            type: string
+            nullable: false
+          - name: priority
+            type: string
+            nullable: false
+          - name: timestamp
+            type: integer
+            nullable: false
+engine:
+  runner:
+    type: stream
+  backend:
+    type: sqlite
+    config:
+      database: bizon_async_test
+      schema: public
