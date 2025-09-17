@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'bizon/connectors/sources/kafka/**'
-      - 'tests/e2e/test_e2e_kafka_async_polling.py'
+      - 'tests/e2e/kafka/**'
       - 'tests/connectors/sources/kafka/**'
       - '.github/workflows/kafka-e2e.yml'
 
