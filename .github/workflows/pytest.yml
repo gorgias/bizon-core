@@ -2,6 +2,10 @@ name: Pytest bizon
 
 on:
   pull_request:
+    paths:
+      - 'bizon/**'
+      - 'tests/**'
+      - '.github/workflows/pytest.yml'
 
 permissions:
   contents: read
