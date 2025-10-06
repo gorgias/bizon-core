@@ -1,0 +1,25 @@
+name: sana to file
+
+source:
+  name: sana_ai
+  stream: insight_report
+  domain: my_domain
+  query: 'SELECT "user", "user_type", "user_role", "user_origin", "user_registration_step", "user_creation_date", "user_disabled_date", "user_completion_date", "user_status", "user_last_active_date", "user_attribute_evangelist" FROM "analytics"."users" ORDER BY "user" ASC'
+  authentication:
+    type: oauth
+    params:
+      token_refresh_endpoint: https://my_domain.sana.ai/api/token
+      client_id: <client_id>
+      client_secret: <client_secret>
+      grant_type: client_credentials
+      access_token_name: accessToken
+      expires_in_name: expiresIn
+      response_field_path: data
+      scopes:
+        - read
+        - write
+
+destination:
+  name: file
+  config:
+    destination_id: sana_ai_user_status

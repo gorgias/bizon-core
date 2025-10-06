@@ -1,4 +1,4 @@
-from typing import Any, List, Mapping, Union
+from typing import Any, List, Mapping, Optional, Union
 
 import pendulum
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ class Oauth2AuthParams(BaseModel):
     token_refresh_endpoint: str = Field(..., description="URL to refresh the token")
     client_id: str = Field(..., description="Client ID")
     client_secret: str = Field(..., description="Client Secret")
-    refresh_token: str = Field(..., description="Refresh Token")
+    refresh_token: Union[str, None] = Field(None, description="Refresh Token")
     scopes: List[str] = Field(None, description="Scopes")
     token_expiry_date: DateTime = Field(None, description="Token expiry date")
     token_expiry_date_format: str = Field(None, description="Token expiry date format")
@@ -19,6 +19,7 @@ class Oauth2AuthParams(BaseModel):
     expires_in_name: str = Field("expires_in", description="Name of the expires in")
     refresh_request_body: Mapping[str, Any] = Field(None, description="Request body to refresh the token")
     grant_type: str = Field("refresh_token", description="Grant type")
+    response_field_path: Optional[str] = Field(None, description="Path in dpath to the response field")
 
 
 class Oauth2Authenticator(AbstractOauth2Authenticator):
@@ -37,7 +38,7 @@ class Oauth2Authenticator(AbstractOauth2Authenticator):
         self._expires_in_name = params.expires_in_name
         self._refresh_request_body = params.refresh_request_body
         self._grant_type = params.grant_type
-
+        self._response_field_path = params.response_field_path
         self._token_expiry_date = params.token_expiry_date or pendulum.now().subtract(days=1)
         self._token_expiry_date_format = params.token_expiry_date_format
         self._access_token = None
@@ -68,6 +69,9 @@ class Oauth2Authenticator(AbstractOauth2Authenticator):
 
     def get_grant_type(self) -> str:
         return self._grant_type
+
+    def get_response_field_path(self) -> str:
+        return self._response_field_path
 
     def get_token_expiry_date(self) -> DateTime:
         return self._token_expiry_date

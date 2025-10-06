@@ -2,6 +2,7 @@ from abc import abstractmethod
 from typing import Any, List, Mapping, MutableMapping, Tuple, Union
 
 import backoff
+import dpath
 import pendulum
 import requests
 from loguru import logger
@@ -53,7 +54,7 @@ class AbstractOauth2Authenticator(AuthBase):
         }
 
         if self.get_scopes:
-            payload["scopes"] = self.get_scopes()
+            payload["scope"] = ",".join(self.get_scopes())
 
         if self.get_refresh_request_body():
             for key, val in self.get_refresh_request_body().items():
@@ -92,6 +93,8 @@ class AbstractOauth2Authenticator(AuthBase):
         :return: a tuple of (access_token, token_lifespan_in_seconds)
         """
         response_json = self._get_refresh_access_token_response()
+        if self.get_response_field_path():
+            response_json = dpath.get(response_json, self.get_response_field_path())
         return response_json[self.get_access_token_name()], int(response_json[self.get_expires_in_name()])
 
     @abstractmethod
@@ -137,6 +140,10 @@ class AbstractOauth2Authenticator(AuthBase):
     @abstractmethod
     def get_grant_type(self) -> str:
         """Returns grant_type specified for requesting access_token"""
+
+    @abstractmethod
+    def get_response_field_path(self) -> str:
+        """Returns the path to the response field"""
 
     @property
     @abstractmethod
