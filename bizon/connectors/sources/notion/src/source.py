@@ -746,6 +746,7 @@ class NotionSource(AbstractSource):
                 "parent_input_page_id": page_info["input_page_id"],
                 "markdown": "\n\n".join(markdown_lines),
                 "block_count": len(blocks),
+                "blocks_raw": blocks,
             }
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
