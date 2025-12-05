@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, List, Optional, Tuple
 
 from loguru import logger
@@ -320,10 +321,44 @@ class NotionSource(AbstractSource):
         response.raise_for_status()
         return response.json()
 
-    def fetch_blocks_recursively(self, block_id: str) -> List[dict]:
+    def get_pages_from_database(self, database_id: str) -> List[str]:
+        """Get all page IDs from a database by querying its data sources."""
+        page_ids = []
+        try:
+            db_data = self.get_database(database_id)
+            for ds in db_data.get("data_sources", []):
+                cursor = None
+                while True:
+                    result = self.query_data_source(ds["id"], cursor)
+                    for page in result.get("results", []):
+                        page_ids.append(page["id"])
+                    if result.get("has_more"):
+                        cursor = result.get("next_cursor")
+                    else:
+                        break
+        except Exception as e:
+            logger.error(f"Failed to get pages from database {database_id}: {e}")
+        return page_ids
+
+    def fetch_blocks_recursively(
+        self,
+        block_id: str,
+        parent_input_database_id: Optional[str] = None,
+        parent_input_page_id: Optional[str] = None,
+        source_page_id: Optional[str] = None,
+    ) -> List[dict]:
         """
         Fetch all blocks under a block_id recursively.
-        Returns a flat list of all blocks with parent_id added.
+        Also fetches content from child_database blocks.
+
+        Args:
+            block_id: The block/page ID to fetch children from
+            parent_input_database_id: The original input database ID from config
+            parent_input_page_id: The original input page ID from config
+            source_page_id: The immediate page this block belongs to
+
+        Returns:
+            Flat list of all blocks with lineage tracking fields
         """
         all_blocks = []
         cursor = None
@@ -332,12 +367,54 @@ class NotionSource(AbstractSource):
             result = self.get_block_children(block_id, cursor)
 
             for block in result.get("results", []):
+                # Add lineage tracking
                 block["parent_block_id"] = block_id
+                block["parent_input_database_id"] = parent_input_database_id
+                block["parent_input_page_id"] = parent_input_page_id
+                block["source_page_id"] = source_page_id
+
                 all_blocks.append(block)
 
-                # Recursively fetch children if block has children and recursive is enabled
-                if block.get("has_children") and self.config.fetch_blocks_recursively:
-                    child_blocks = self.fetch_blocks_recursively(block["id"])
+                # Handle child_database blocks - fetch their content in parallel
+                if block.get("type") == "child_database" and self.config.fetch_blocks_recursively:
+                    child_db_id = block.get("id")
+                    logger.info(f"Found inline database {child_db_id}, fetching its content")
+
+                    try:
+                        # Get all pages from the inline database
+                        inline_page_ids = self.get_pages_from_database(child_db_id)
+
+                        # Fetch blocks from inline pages in parallel
+                        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+                            futures = {
+                                executor.submit(
+                                    self.fetch_blocks_recursively,
+                                    block_id=inline_page_id,
+                                    parent_input_database_id=parent_input_database_id,
+                                    parent_input_page_id=parent_input_page_id,
+                                    source_page_id=inline_page_id,
+                                ): inline_page_id
+                                for inline_page_id in inline_page_ids
+                            }
+                            for future in as_completed(futures):
+                                try:
+                                    inline_blocks = future.result()
+                                    all_blocks.extend(inline_blocks)
+                                except Exception as e:
+                                    page_id = futures[future]
+                                    logger.error(f"Failed to fetch blocks from inline page {page_id}: {e}")
+
+                    except Exception as e:
+                        logger.error(f"Failed to fetch content from inline database {child_db_id}: {e}")
+
+                # Recursively fetch children if block has children
+                elif block.get("has_children") and self.config.fetch_blocks_recursively:
+                    child_blocks = self.fetch_blocks_recursively(
+                        block_id=block["id"],
+                        parent_input_database_id=parent_input_database_id,
+                        parent_input_page_id=parent_input_page_id,
+                        source_page_id=source_page_id,
+                    )
                     all_blocks.extend(child_blocks)
 
             if result.get("has_more"):
@@ -351,18 +428,27 @@ class NotionSource(AbstractSource):
         """
         Fetch blocks from pages (from databases and page_ids).
         Blocks are fetched recursively if fetch_blocks_recursively is True.
+        Also fetches content from inline databases (child_database blocks).
         """
         if pagination:
-            page_ids_to_process = pagination.get("page_ids_to_process", [])
+            # Each item is: {"page_id": str, "input_db_id": str|None, "input_page_id": str|None}
+            pages_to_process = pagination.get("pages_to_process", [])
             pages_loaded = pagination.get("pages_loaded", False)
         else:
-            page_ids_to_process = []
+            pages_to_process = []
             pages_loaded = False
 
-        # First, collect all page IDs from databases and config
+        # First, collect all page IDs from databases and config with their lineage
         if not pages_loaded:
-            # Add configured page_ids
-            page_ids_to_process.extend(self.config.page_ids)
+            # Add configured page_ids (these are direct input pages)
+            for page_id in self.config.page_ids:
+                pages_to_process.append(
+                    {
+                        "page_id": page_id,
+                        "input_db_id": None,
+                        "input_page_id": page_id,
+                    }
+                )
 
             # Collect pages from databases
             for db_id in self.config.database_ids:
@@ -373,7 +459,13 @@ class NotionSource(AbstractSource):
                         while True:
                             result = self.query_data_source(ds["id"], cursor)
                             for page in result.get("results", []):
-                                page_ids_to_process.append(page["id"])
+                                pages_to_process.append(
+                                    {
+                                        "page_id": page["id"],
+                                        "input_db_id": db_id,
+                                        "input_page_id": None,
+                                    }
+                                )
                             if result.get("has_more"):
                                 cursor = result.get("next_cursor")
                             else:
@@ -383,26 +475,38 @@ class NotionSource(AbstractSource):
 
             pages_loaded = True
 
-        if not page_ids_to_process:
+        if not pages_to_process:
             return SourceIteration(records=[], next_pagination={})
 
-        # Process one page at a time
-        page_id = page_ids_to_process[0]
-        page_ids_to_process = page_ids_to_process[1:]
+        # Process a batch of pages in parallel
+        batch_size = self.config.max_workers
+        batch = pages_to_process[:batch_size]
+        pages_to_process = pages_to_process[batch_size:]
 
         records = []
-        try:
-            blocks = self.fetch_blocks_recursively(page_id)
-            for block in blocks:
-                block["source_page_id"] = page_id
-                records.append(SourceRecord(id=block["id"], data=block))
-            logger.info(f"Fetched {len(blocks)} blocks from page {page_id}")
-        except Exception as e:
-            logger.error(f"Failed to fetch blocks from page {page_id}: {e}")
 
-        next_pagination = (
-            {"page_ids_to_process": page_ids_to_process, "pages_loaded": True} if page_ids_to_process else {}
-        )
+        def fetch_page_blocks(page_info: dict) -> List[dict]:
+            """Fetch all blocks for a single page."""
+            return self.fetch_blocks_recursively(
+                block_id=page_info["page_id"],
+                parent_input_database_id=page_info["input_db_id"],
+                parent_input_page_id=page_info["input_page_id"],
+                source_page_id=page_info["page_id"],
+            )
+
+        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+            futures = {executor.submit(fetch_page_blocks, page_info): page_info for page_info in batch}
+            for future in as_completed(futures):
+                page_info = futures[future]
+                try:
+                    blocks = future.result()
+                    for block in blocks:
+                        records.append(SourceRecord(id=block["id"], data=block))
+                    logger.info(f"Fetched {len(blocks)} blocks from page {page_info['page_id']}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch blocks from page {page_info['page_id']}: {e}")
+
+        next_pagination = {"pages_to_process": pages_to_process, "pages_loaded": True} if pages_to_process else {}
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
@@ -412,6 +516,252 @@ class NotionSource(AbstractSource):
         """Extract plain text title from database object."""
         title_parts = database_data.get("title", [])
         return "".join(part.get("plain_text", "") for part in title_parts)
+
+    # ==================== MARKDOWN CONVERSION ====================
+
+    def _extract_rich_text(self, rich_text_array: List[dict]) -> str:
+        """Convert Notion rich text array to markdown string with formatting."""
+        if not rich_text_array:
+            return ""
+
+        result = []
+        for item in rich_text_array:
+            text = item.get("plain_text", "")
+            annotations = item.get("annotations", {})
+            href = item.get("href")
+
+            # Apply formatting in order: code, bold, italic, strikethrough
+            if annotations.get("code"):
+                text = f"`{text}`"
+            if annotations.get("bold"):
+                text = f"**{text}**"
+            if annotations.get("italic"):
+                text = f"*{text}*"
+            if annotations.get("strikethrough"):
+                text = f"~~{text}~~"
+            if href:
+                text = f"[{text}]({href})"
+
+            result.append(text)
+
+        return "".join(result)
+
+    def _block_to_markdown(self, block: dict) -> str:
+        """Convert a single Notion block to markdown string."""
+        block_type = block.get("type", "")
+        content = block.get(block_type, {})
+
+        # Text blocks
+        if block_type == "paragraph":
+            return self._extract_rich_text(content.get("rich_text", []))
+
+        elif block_type == "heading_1":
+            return f"# {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "heading_2":
+            return f"## {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "heading_3":
+            return f"### {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "bulleted_list_item":
+            return f"- {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "numbered_list_item":
+            return f"1. {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "to_do":
+            checkbox = "[x]" if content.get("checked") else "[ ]"
+            return f"- {checkbox} {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "quote":
+            return f"> {self._extract_rich_text(content.get('rich_text', []))}"
+
+        elif block_type == "callout":
+            emoji = content.get("icon", {}).get("emoji", "💡")
+            text = self._extract_rich_text(content.get("rich_text", []))
+            return f"> {emoji} {text}"
+
+        elif block_type == "code":
+            language = content.get("language", "")
+            code_text = self._extract_rich_text(content.get("rich_text", []))
+            return f"```{language}\n{code_text}\n```"
+
+        elif block_type == "equation":
+            return f"$$ {content.get('expression', '')} $$"
+
+        elif block_type == "divider":
+            return "---"
+
+        elif block_type == "toggle":
+            return f"<details><summary>{self._extract_rich_text(content.get('rich_text', []))}</summary></details>"
+
+        # Media blocks
+        elif block_type == "image":
+            url = content.get("external", {}).get("url") or content.get("file", {}).get("url", "")
+            caption = self._extract_rich_text(content.get("caption", []))
+            return f"![{caption}]({url})"
+
+        elif block_type == "video":
+            url = content.get("external", {}).get("url") or content.get("file", {}).get("url", "")
+            return f"[Video]({url})"
+
+        elif block_type == "file":
+            url = content.get("external", {}).get("url") or content.get("file", {}).get("url", "")
+            caption = self._extract_rich_text(content.get("caption", [])) or "File"
+            return f"[{caption}]({url})"
+
+        elif block_type == "pdf":
+            url = content.get("external", {}).get("url") or content.get("file", {}).get("url", "")
+            return f"[PDF]({url})"
+
+        elif block_type == "bookmark":
+            url = content.get("url", "")
+            caption = self._extract_rich_text(content.get("caption", [])) or url
+            return f"[{caption}]({url})"
+
+        elif block_type == "embed":
+            return f"[Embed]({content.get('url', '')})"
+
+        elif block_type == "link_preview":
+            return f"[Link Preview]({content.get('url', '')})"
+
+        # Table blocks
+        elif block_type == "table":
+            return "[Table - see child blocks for rows]"
+
+        elif block_type == "table_row":
+            cells = content.get("cells", [])
+            row = " | ".join(self._extract_rich_text(cell) for cell in cells)
+            return f"| {row} |"
+
+        # Database/page references
+        elif block_type == "child_page":
+            return f"[Page: {content.get('title', 'Untitled')}]"
+
+        elif block_type == "child_database":
+            return f"[Database: {content.get('title', 'Untitled')}]"
+
+        elif block_type == "link_to_page":
+            page_id = content.get("page_id") or content.get("database_id", "")
+            return f"[Link to page: {page_id}]"
+
+        elif block_type == "table_of_contents":
+            return "[Table of Contents]"
+
+        elif block_type == "breadcrumb":
+            return "[Breadcrumb]"
+
+        elif block_type == "synced_block":
+            return "[Synced Block]"
+
+        elif block_type == "template":
+            return "[Template]"
+
+        elif block_type == "column_list":
+            return ""  # Column list is just a container
+
+        elif block_type == "column":
+            return ""  # Column is just a container
+
+        else:
+            return f"[Unsupported block type: {block_type}]"
+
+    def get_blocks_markdown(self, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch blocks and convert them to markdown.
+        Returns one record per page with concatenated markdown content.
+        """
+        if pagination:
+            pages_to_process = pagination.get("pages_to_process", [])
+            pages_loaded = pagination.get("pages_loaded", False)
+        else:
+            pages_to_process = []
+            pages_loaded = False
+
+        # Collect all page IDs (same logic as get_blocks)
+        if not pages_loaded:
+            for page_id in self.config.page_ids:
+                pages_to_process.append(
+                    {
+                        "page_id": page_id,
+                        "input_db_id": None,
+                        "input_page_id": page_id,
+                    }
+                )
+
+            for db_id in self.config.database_ids:
+                try:
+                    db_data = self.get_database(db_id)
+                    for ds in db_data.get("data_sources", []):
+                        cursor = None
+                        while True:
+                            result = self.query_data_source(ds["id"], cursor)
+                            for page in result.get("results", []):
+                                pages_to_process.append(
+                                    {
+                                        "page_id": page["id"],
+                                        "input_db_id": db_id,
+                                        "input_page_id": None,
+                                    }
+                                )
+                            if result.get("has_more"):
+                                cursor = result.get("next_cursor")
+                            else:
+                                break
+                except Exception as e:
+                    logger.error(f"Failed to collect pages from database {db_id}: {e}")
+
+            pages_loaded = True
+
+        if not pages_to_process:
+            return SourceIteration(records=[], next_pagination={})
+
+        # Process a batch of pages in parallel
+        batch_size = self.config.max_workers
+        batch = pages_to_process[:batch_size]
+        pages_to_process = pages_to_process[batch_size:]
+
+        records = []
+
+        def fetch_and_convert_page(page_info: dict) -> dict:
+            """Fetch blocks for a page and convert to markdown."""
+            blocks = self.fetch_blocks_recursively(
+                block_id=page_info["page_id"],
+                parent_input_database_id=page_info["input_db_id"],
+                parent_input_page_id=page_info["input_page_id"],
+                source_page_id=page_info["page_id"],
+            )
+
+            # Convert each block to markdown and join
+            markdown_lines = []
+            for block in blocks:
+                md = self._block_to_markdown(block)
+                if md:  # Skip empty conversions
+                    markdown_lines.append(md)
+
+            return {
+                "page_id": page_info["page_id"],
+                "parent_input_database_id": page_info["input_db_id"],
+                "parent_input_page_id": page_info["input_page_id"],
+                "markdown": "\n\n".join(markdown_lines),
+                "block_count": len(blocks),
+            }
+
+        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+            futures = {executor.submit(fetch_and_convert_page, page_info): page_info for page_info in batch}
+            for future in as_completed(futures):
+                page_info = futures[future]
+                try:
+                    result = future.result()
+                    records.append(SourceRecord(id=result["page_id"], data=result))
+                    logger.info(f"Converted {result['block_count']} blocks to markdown from page {result['page_id']}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch/convert blocks from page {page_info['page_id']}: {e}")
+
+        next_pagination = {"pages_to_process": pages_to_process, "pages_loaded": True} if pages_to_process else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
 
     # ==================== MAIN DISPATCH ====================
 
@@ -426,5 +776,7 @@ class NotionSource(AbstractSource):
             return self.get_pages(pagination)
         elif self.config.stream == NotionStreams.BLOCKS:
             return self.get_blocks(pagination)
+        elif self.config.stream == NotionStreams.BLOCKS_MARKDOWN:
+            return self.get_blocks_markdown(pagination)
 
         raise NotImplementedError(f"Stream {self.config.stream} not implemented for Notion")

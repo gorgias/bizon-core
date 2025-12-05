@@ -11,6 +11,7 @@ class NotionStreams(str, Enum):
     DATA_SOURCES = "data_sources"
     PAGES = "pages"
     BLOCKS = "blocks"
+    BLOCKS_MARKDOWN = "blocks_markdown"
     USERS = "users"
 
 
@@ -34,4 +35,10 @@ class NotionSourceConfig(SourceConfig):
         ge=1,
         le=100,
         description="Number of results per page (max 100)",
+    )
+    max_workers: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of concurrent workers for fetching blocks. Keep low to respect rate limits.",
     )
