@@ -28,9 +28,11 @@ class NotionSource(AbstractSource):
         """Create a session with retry logic and required Notion headers."""
         session = Session()
         retries = Retry(
-            total=5,
-            backoff_factor=1,
+            total=10,
+            backoff_factor=2,  # Exponential backoff: 2, 4, 8, 16, 32... seconds
             status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST", "PATCH"],  # Retry on POST/PATCH too
+            respect_retry_after_header=True,  # Honor Notion's Retry-After header
         )
         session.mount("https://", HTTPAdapter(max_retries=retries))
         session.headers.update(
