@@ -16,6 +16,7 @@ class NotionStreams(str, Enum):
     # Streams that fetch all accessible content (no database_ids/page_ids required)
     ALL_PAGES = "all_pages"
     ALL_DATABASES = "all_databases"
+    ALL_DATA_SOURCES = "all_data_sources"
     ALL_BLOCKS_MARKDOWN = "all_blocks_markdown"
 
 

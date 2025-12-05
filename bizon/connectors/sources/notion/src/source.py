@@ -807,12 +807,66 @@ class NotionSource(AbstractSource):
         }
 
     def get_all_databases(self, pagination: dict = None) -> SourceIteration:
-        """Fetch all databases accessible to the integration."""
+        """
+        Fetch all databases accessible to the integration.
+        In 2025-09-03 API, we get data_sources from search and fetch their parent databases.
+        """
+        if pagination:
+            db_ids_to_fetch = pagination.get("db_ids_to_fetch", [])
+            dbs_loaded = pagination.get("dbs_loaded", False)
+        else:
+            db_ids_to_fetch = []
+            dbs_loaded = False
+
+        # Collect unique database IDs from data_sources
+        if not dbs_loaded:
+            seen_db_ids = set()
+            search_cursor = None
+
+            while True:
+                result = self.search_by_type(object_type="data_source", start_cursor=search_cursor)
+                for ds in result.get("results", []):
+                    # Data sources have a parent.database_id
+                    parent = ds.get("parent", {})
+                    if parent.get("type") == "database_id":
+                        db_id = parent.get("database_id")
+                        if db_id and db_id not in seen_db_ids:
+                            seen_db_ids.add(db_id)
+                            db_ids_to_fetch.append(db_id)
+
+                if result.get("has_more"):
+                    search_cursor = result.get("next_cursor")
+                else:
+                    break
+
+            dbs_loaded = True
+            logger.info(f"Found {len(db_ids_to_fetch)} unique databases from data_sources")
+
+        if not db_ids_to_fetch:
+            return SourceIteration(records=[], next_pagination={})
+
+        # Fetch one database at a time
+        db_id = db_ids_to_fetch[0]
+        db_ids_to_fetch = db_ids_to_fetch[1:]
+
+        records = []
+        try:
+            db_data = self.get_database(db_id)
+            records.append(SourceRecord(id=db_data["id"], data=db_data))
+        except Exception as e:
+            logger.error(f"Failed to fetch database {db_id}: {e}")
+
+        next_pagination = {"db_ids_to_fetch": db_ids_to_fetch, "dbs_loaded": True} if db_ids_to_fetch else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_all_data_sources(self, pagination: dict = None) -> SourceIteration:
+        """Fetch all data_sources accessible to the integration."""
         cursor = pagination.get("start_cursor") if pagination else None
 
-        result = self.search_by_type(object_type="database", start_cursor=cursor)
+        result = self.search_by_type(object_type="data_source", start_cursor=cursor)
 
-        records = [SourceRecord(id=db["id"], data=db) for db in result.get("results", [])]
+        records = [SourceRecord(id=ds["id"], data=ds) for ds in result.get("results", [])]
 
         next_pagination = {"start_cursor": result.get("next_cursor")} if result.get("has_more") else {}
 
@@ -868,39 +922,40 @@ class NotionSource(AbstractSource):
 
             logger.info(f"Found {len(pages_to_process)} pages from search API")
 
-            # 2. Get all databases and their pages via data_sources
-            db_cursor = None
+            # 2. Get all data_sources and query their pages
+            ds_search_cursor = None
             while True:
-                result = self.search_by_type(object_type="database", start_cursor=db_cursor)
-                for db in result.get("results", []):
-                    db_id = db["id"]
+                result = self.search_by_type(object_type="data_source", start_cursor=ds_search_cursor)
+                for ds in result.get("results", []):
+                    ds_id = ds["id"]
+                    # Get parent database_id from data_source
+                    parent = ds.get("parent", {})
+                    parent_db_id = parent.get("database_id") if parent.get("type") == "database_id" else None
+
                     try:
-                        # Get data_sources from database
-                        db_data = self.get_database(db_id)
-                        for ds in db_data.get("data_sources", []):
-                            # Query each data_source for pages
-                            ds_cursor = None
-                            while True:
-                                ds_result = self.query_data_source(ds["id"], ds_cursor)
-                                for page in ds_result.get("results", []):
-                                    if page["id"] not in seen_page_ids:
-                                        seen_page_ids.add(page["id"])
-                                        pages_to_process.append(
-                                            {
-                                                "page_id": page["id"],
-                                                "input_db_id": db_id,
-                                                "input_page_id": None,
-                                            }
-                                        )
-                                if ds_result.get("has_more"):
-                                    ds_cursor = ds_result.get("next_cursor")
-                                else:
-                                    break
+                        # Query data_source for pages
+                        ds_cursor = None
+                        while True:
+                            ds_result = self.query_data_source(ds_id, ds_cursor)
+                            for page in ds_result.get("results", []):
+                                if page["id"] not in seen_page_ids:
+                                    seen_page_ids.add(page["id"])
+                                    pages_to_process.append(
+                                        {
+                                            "page_id": page["id"],
+                                            "input_db_id": parent_db_id,
+                                            "input_page_id": None,
+                                        }
+                                    )
+                            if ds_result.get("has_more"):
+                                ds_cursor = ds_result.get("next_cursor")
+                            else:
+                                break
                     except Exception as e:
-                        logger.error(f"Failed to get pages from database {db_id}: {e}")
+                        logger.error(f"Failed to get pages from data_source {ds_id}: {e}")
 
                 if result.get("has_more"):
-                    db_cursor = result.get("next_cursor")
+                    ds_search_cursor = result.get("next_cursor")
                 else:
                     break
 
@@ -975,6 +1030,8 @@ class NotionSource(AbstractSource):
             return self.get_all_pages(pagination)
         elif self.config.stream == NotionStreams.ALL_DATABASES:
             return self.get_all_databases(pagination)
+        elif self.config.stream == NotionStreams.ALL_DATA_SOURCES:
+            return self.get_all_data_sources(pagination)
         elif self.config.stream == NotionStreams.ALL_BLOCKS_MARKDOWN:
             return self.get_all_blocks_markdown(pagination)
 
