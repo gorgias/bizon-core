@@ -764,6 +764,198 @@ class NotionSource(AbstractSource):
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
+    # ==================== SEARCH API (ALL_* STREAMS) ====================
+
+    def search(self, start_cursor: str = None) -> dict:
+        """
+        Search all pages and databases accessible to the integration.
+
+        Args:
+            start_cursor: Pagination cursor
+
+        Returns:
+            Raw search results (filter client-side by object type)
+        """
+        payload = {"page_size": self.config.page_size}
+        if start_cursor:
+            payload["start_cursor"] = start_cursor
+
+        response = self.session.post(f"{BASE_URL}/search", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def search_by_type(self, object_type: str, start_cursor: str = None) -> dict:
+        """
+        Search and filter by object type client-side.
+
+        Args:
+            object_type: "page" or "database"
+            start_cursor: Pagination cursor
+
+        Returns:
+            Filtered results matching object_type
+        """
+        result = self.search(start_cursor=start_cursor)
+
+        # Filter results by object type
+        filtered_results = [item for item in result.get("results", []) if item.get("object") == object_type]
+
+        return {
+            "results": filtered_results,
+            "has_more": result.get("has_more", False),
+            "next_cursor": result.get("next_cursor"),
+        }
+
+    def get_all_databases(self, pagination: dict = None) -> SourceIteration:
+        """Fetch all databases accessible to the integration."""
+        cursor = pagination.get("start_cursor") if pagination else None
+
+        result = self.search_by_type(object_type="database", start_cursor=cursor)
+
+        records = [SourceRecord(id=db["id"], data=db) for db in result.get("results", [])]
+
+        next_pagination = {"start_cursor": result.get("next_cursor")} if result.get("has_more") else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_all_pages(self, pagination: dict = None) -> SourceIteration:
+        """Fetch all pages accessible to the integration."""
+        cursor = pagination.get("start_cursor") if pagination else None
+
+        result = self.search_by_type(object_type="page", start_cursor=cursor)
+
+        records = [SourceRecord(id=page["id"], data=page) for page in result.get("results", [])]
+
+        next_pagination = {"start_cursor": result.get("next_cursor")} if result.get("has_more") else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_all_blocks_markdown(self, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch all pages accessible to the integration and convert their blocks to markdown.
+        Includes pages from search API AND pages from all databases via data_sources.
+        """
+        if pagination:
+            pages_to_process = pagination.get("pages_to_process", [])
+            pages_loaded = pagination.get("pages_loaded", False)
+        else:
+            pages_to_process = []
+            pages_loaded = False
+
+        # Collect pages from both search API and databases
+        if not pages_loaded:
+            seen_page_ids = set()
+
+            # 1. Get pages from search API
+            search_cursor = None
+            while True:
+                result = self.search_by_type(object_type="page", start_cursor=search_cursor)
+                for page in result.get("results", []):
+                    if page["id"] not in seen_page_ids:
+                        seen_page_ids.add(page["id"])
+                        pages_to_process.append(
+                            {
+                                "page_id": page["id"],
+                                "input_db_id": None,
+                                "input_page_id": None,
+                            }
+                        )
+
+                if result.get("has_more"):
+                    search_cursor = result.get("next_cursor")
+                else:
+                    break
+
+            logger.info(f"Found {len(pages_to_process)} pages from search API")
+
+            # 2. Get all databases and their pages via data_sources
+            db_cursor = None
+            while True:
+                result = self.search_by_type(object_type="database", start_cursor=db_cursor)
+                for db in result.get("results", []):
+                    db_id = db["id"]
+                    try:
+                        # Get data_sources from database
+                        db_data = self.get_database(db_id)
+                        for ds in db_data.get("data_sources", []):
+                            # Query each data_source for pages
+                            ds_cursor = None
+                            while True:
+                                ds_result = self.query_data_source(ds["id"], ds_cursor)
+                                for page in ds_result.get("results", []):
+                                    if page["id"] not in seen_page_ids:
+                                        seen_page_ids.add(page["id"])
+                                        pages_to_process.append(
+                                            {
+                                                "page_id": page["id"],
+                                                "input_db_id": db_id,
+                                                "input_page_id": None,
+                                            }
+                                        )
+                                if ds_result.get("has_more"):
+                                    ds_cursor = ds_result.get("next_cursor")
+                                else:
+                                    break
+                    except Exception as e:
+                        logger.error(f"Failed to get pages from database {db_id}: {e}")
+
+                if result.get("has_more"):
+                    db_cursor = result.get("next_cursor")
+                else:
+                    break
+
+            pages_loaded = True
+            logger.info(f"Total {len(pages_to_process)} unique pages to process for all_blocks_markdown")
+
+        if not pages_to_process:
+            return SourceIteration(records=[], next_pagination={})
+
+        # Process a batch of pages in parallel
+        batch_size = self.config.max_workers
+        batch = pages_to_process[:batch_size]
+        pages_to_process = pages_to_process[batch_size:]
+
+        records = []
+
+        def fetch_and_convert_page(page_info: dict) -> dict:
+            """Fetch blocks for a page and convert to markdown."""
+            blocks = self.fetch_blocks_recursively(
+                block_id=page_info["page_id"],
+                parent_input_database_id=page_info["input_db_id"],
+                parent_input_page_id=page_info["input_page_id"],
+                source_page_id=page_info["page_id"],
+            )
+
+            markdown_lines = []
+            for block in blocks:
+                md = self._block_to_markdown(block)
+                if md:
+                    markdown_lines.append(md)
+
+            return {
+                "page_id": page_info["page_id"],
+                "parent_input_database_id": page_info["input_db_id"],
+                "parent_input_page_id": page_info["input_page_id"],
+                "markdown": "\n\n".join(markdown_lines),
+                "block_count": len(blocks),
+                "blocks_raw": blocks,
+            }
+
+        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+            futures = {executor.submit(fetch_and_convert_page, page_info): page_info for page_info in batch}
+            for future in as_completed(futures):
+                page_info = futures[future]
+                try:
+                    result = future.result()
+                    records.append(SourceRecord(id=result["page_id"], data=result))
+                    logger.info(f"Converted {result['block_count']} blocks to markdown from page {result['page_id']}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch/convert blocks from page {page_info['page_id']}: {e}")
+
+        next_pagination = {"pages_to_process": pages_to_process, "pages_loaded": True} if pages_to_process else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
     # ==================== MAIN DISPATCH ====================
 
     def get(self, pagination: dict = None) -> SourceIteration:
@@ -779,5 +971,11 @@ class NotionSource(AbstractSource):
             return self.get_blocks(pagination)
         elif self.config.stream == NotionStreams.BLOCKS_MARKDOWN:
             return self.get_blocks_markdown(pagination)
+        elif self.config.stream == NotionStreams.ALL_PAGES:
+            return self.get_all_pages(pagination)
+        elif self.config.stream == NotionStreams.ALL_DATABASES:
+            return self.get_all_databases(pagination)
+        elif self.config.stream == NotionStreams.ALL_BLOCKS_MARKDOWN:
+            return self.get_all_blocks_markdown(pagination)
 
         raise NotImplementedError(f"Stream {self.config.stream} not implemented for Notion")

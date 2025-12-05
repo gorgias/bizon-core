@@ -13,6 +13,10 @@ class NotionStreams(str, Enum):
     BLOCKS = "blocks"
     BLOCKS_MARKDOWN = "blocks_markdown"
     USERS = "users"
+    # Streams that fetch all accessible content (no database_ids/page_ids required)
+    ALL_PAGES = "all_pages"
+    ALL_DATABASES = "all_databases"
+    ALL_BLOCKS_MARKDOWN = "all_blocks_markdown"
 
 
 class NotionSourceConfig(SourceConfig):
