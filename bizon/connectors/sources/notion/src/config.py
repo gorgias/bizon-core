@@ -35,6 +35,12 @@ class NotionSourceConfig(SourceConfig):
         default=True,
         description="Whether to fetch nested blocks recursively. Only applies to blocks stream.",
     )
+    max_recursion_depth: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum nesting depth for recursive block fetching. Prevents infinite loops.",
+    )
     page_size: int = Field(
         default=100,
         ge=1,

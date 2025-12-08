@@ -348,6 +348,7 @@ class NotionSource(AbstractSource):
         parent_input_database_id: Optional[str] = None,
         parent_input_page_id: Optional[str] = None,
         source_page_id: Optional[str] = None,
+        current_depth: int = 0,
     ) -> List[dict]:
         """
         Fetch all blocks under a block_id recursively.
@@ -358,12 +359,21 @@ class NotionSource(AbstractSource):
             parent_input_database_id: The original input database ID from config
             parent_input_page_id: The original input page ID from config
             source_page_id: The immediate page this block belongs to
+            current_depth: Current recursion depth (0 = top level)
 
         Returns:
             Flat list of all blocks with lineage tracking fields
         """
+        # Check recursion depth limit
+        if current_depth >= self.config.max_recursion_depth:
+            logger.warning(
+                f"Max recursion depth {self.config.max_recursion_depth} reached for block {block_id}, stopping recursion"
+            )
+            return []
+
         all_blocks = []
         cursor = None
+        block_order = 0  # Track position within parent
 
         while True:
             result = self.get_block_children(block_id, cursor)
@@ -374,13 +384,17 @@ class NotionSource(AbstractSource):
                 block["parent_input_database_id"] = parent_input_database_id
                 block["parent_input_page_id"] = parent_input_page_id
                 block["source_page_id"] = source_page_id
+                # Add depth and ordering
+                block["depth"] = current_depth
+                block["block_order"] = block_order
+                block_order += 1
 
                 all_blocks.append(block)
 
                 # Handle child_database blocks - fetch their content in parallel
                 if block.get("type") == "child_database" and self.config.fetch_blocks_recursively:
                     child_db_id = block.get("id")
-                    logger.info(f"Found inline database {child_db_id}, fetching its content")
+                    logger.info(f"Found inline database {child_db_id} at depth {current_depth}, fetching its content")
 
                     try:
                         # Get all pages from the inline database
@@ -395,6 +409,7 @@ class NotionSource(AbstractSource):
                                     parent_input_database_id=parent_input_database_id,
                                     parent_input_page_id=parent_input_page_id,
                                     source_page_id=inline_page_id,
+                                    current_depth=current_depth + 1,
                                 ): inline_page_id
                                 for inline_page_id in inline_page_ids
                             }
@@ -416,6 +431,7 @@ class NotionSource(AbstractSource):
                         parent_input_database_id=parent_input_database_id,
                         parent_input_page_id=parent_input_page_id,
                         source_page_id=source_page_id,
+                        current_depth=current_depth + 1,
                     )
                     all_blocks.extend(child_blocks)
 
@@ -672,7 +688,7 @@ class NotionSource(AbstractSource):
     def get_blocks_markdown(self, pagination: dict = None) -> SourceIteration:
         """
         Fetch blocks and convert them to markdown.
-        Returns one record per page with concatenated markdown content.
+        Returns one record per block with its markdown content.
         """
         if pagination:
             pages_to_process = pagination.get("pages_to_process", [])
@@ -726,8 +742,8 @@ class NotionSource(AbstractSource):
 
         records = []
 
-        def fetch_and_convert_page(page_info: dict) -> dict:
-            """Fetch blocks for a page and convert to markdown."""
+        def fetch_and_convert_page(page_info: dict) -> List[dict]:
+            """Fetch blocks for a page and convert each to markdown."""
             blocks = self.fetch_blocks_recursively(
                 block_id=page_info["page_id"],
                 parent_input_database_id=page_info["input_db_id"],
@@ -735,30 +751,35 @@ class NotionSource(AbstractSource):
                 source_page_id=page_info["page_id"],
             )
 
-            # Convert each block to markdown and join
-            markdown_lines = []
+            # Convert each block to markdown record
+            block_records = []
             for block in blocks:
                 md = self._block_to_markdown(block)
-                if md:  # Skip empty conversions
-                    markdown_lines.append(md)
-
-            return {
-                "page_id": page_info["page_id"],
-                "parent_input_database_id": page_info["input_db_id"],
-                "parent_input_page_id": page_info["input_page_id"],
-                "markdown": "\n\n".join(markdown_lines),
-                "block_count": len(blocks),
-                "blocks_raw": blocks,
-            }
+                block_records.append(
+                    {
+                        "block_id": block["id"],
+                        "block_type": block.get("type"),
+                        "markdown": md,
+                        "source_page_id": block.get("source_page_id"),
+                        "parent_block_id": block.get("parent_block_id"),
+                        "parent_input_database_id": block.get("parent_input_database_id"),
+                        "parent_input_page_id": block.get("parent_input_page_id"),
+                        "depth": block.get("depth"),
+                        "block_order": block.get("block_order"),
+                        "block_raw": block,
+                    }
+                )
+            return block_records
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
             futures = {executor.submit(fetch_and_convert_page, page_info): page_info for page_info in batch}
             for future in as_completed(futures):
                 page_info = futures[future]
                 try:
-                    result = future.result()
-                    records.append(SourceRecord(id=result["page_id"], data=result))
-                    logger.info(f"Converted {result['block_count']} blocks to markdown from page {result['page_id']}")
+                    block_records = future.result()
+                    for block_record in block_records:
+                        records.append(SourceRecord(id=block_record["block_id"], data=block_record))
+                    logger.info(f"Converted {len(block_records)} blocks to markdown from page {page_info['page_id']}")
                 except Exception as e:
                     logger.error(f"Failed to fetch/convert blocks from page {page_info['page_id']}: {e}")
 
@@ -974,8 +995,8 @@ class NotionSource(AbstractSource):
 
         records = []
 
-        def fetch_and_convert_page(page_info: dict) -> dict:
-            """Fetch blocks for a page and convert to markdown."""
+        def fetch_and_convert_page(page_info: dict) -> List[dict]:
+            """Fetch blocks for a page and convert each to markdown."""
             blocks = self.fetch_blocks_recursively(
                 block_id=page_info["page_id"],
                 parent_input_database_id=page_info["input_db_id"],
@@ -983,29 +1004,35 @@ class NotionSource(AbstractSource):
                 source_page_id=page_info["page_id"],
             )
 
-            markdown_lines = []
+            # Convert each block to markdown record
+            block_records = []
             for block in blocks:
                 md = self._block_to_markdown(block)
-                if md:
-                    markdown_lines.append(md)
-
-            return {
-                "page_id": page_info["page_id"],
-                "parent_input_database_id": page_info["input_db_id"],
-                "parent_input_page_id": page_info["input_page_id"],
-                "markdown": "\n\n".join(markdown_lines),
-                "block_count": len(blocks),
-                "blocks_raw": blocks,
-            }
+                block_records.append(
+                    {
+                        "block_id": block["id"],
+                        "block_type": block.get("type"),
+                        "markdown": md,
+                        "source_page_id": block.get("source_page_id"),
+                        "parent_block_id": block.get("parent_block_id"),
+                        "parent_input_database_id": block.get("parent_input_database_id"),
+                        "parent_input_page_id": block.get("parent_input_page_id"),
+                        "depth": block.get("depth"),
+                        "block_order": block.get("block_order"),
+                        "block_raw": block,
+                    }
+                )
+            return block_records
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
             futures = {executor.submit(fetch_and_convert_page, page_info): page_info for page_info in batch}
             for future in as_completed(futures):
                 page_info = futures[future]
                 try:
-                    result = future.result()
-                    records.append(SourceRecord(id=result["page_id"], data=result))
-                    logger.info(f"Converted {result['block_count']} blocks to markdown from page {result['page_id']}")
+                    block_records = future.result()
+                    for block_record in block_records:
+                        records.append(SourceRecord(id=block_record["block_id"], data=block_record))
+                    logger.info(f"Converted {len(block_records)} blocks to markdown from page {page_info['page_id']}")
                 except Exception as e:
                     logger.error(f"Failed to fetch/convert blocks from page {page_info['page_id']}: {e}")
 
