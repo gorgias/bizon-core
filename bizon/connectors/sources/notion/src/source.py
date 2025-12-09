@@ -350,6 +350,7 @@ class NotionSource(AbstractSource):
         source_page_id: Optional[str] = None,
         current_depth: int = 0,
         fetch_child_databases: bool = True,
+        global_order_counter: Optional[List[int]] = None,
     ) -> List[dict]:
         """
         Fetch all blocks under a block_id recursively.
@@ -362,10 +363,14 @@ class NotionSource(AbstractSource):
             source_page_id: The immediate page this block belongs to
             current_depth: Current recursion depth (0 = top level)
             fetch_child_databases: Whether to recurse into child_database blocks (disable for all_* streams)
+            global_order_counter: Mutable counter [int] for tracking reading order across all blocks in a page
 
         Returns:
             Flat list of all blocks with lineage tracking fields
         """
+        # Initialize counter on first call
+        if global_order_counter is None:
+            global_order_counter = [0]
         # Check recursion depth limit
         if current_depth >= self.config.max_recursion_depth:
             logger.warning(
@@ -389,7 +394,9 @@ class NotionSource(AbstractSource):
                 # Add depth and ordering
                 block["depth"] = current_depth
                 block["block_order"] = block_order
+                block["page_order"] = global_order_counter[0]
                 block_order += 1
+                global_order_counter[0] += 1
 
                 all_blocks.append(block)
 
@@ -407,6 +414,7 @@ class NotionSource(AbstractSource):
                         inline_page_ids = self.get_pages_from_database(child_db_id)
 
                         # Fetch blocks from inline pages in parallel
+                        # Note: parallel execution means global_order_counter won't be sequential for inline DBs
                         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
                             futures = {
                                 executor.submit(
@@ -417,6 +425,7 @@ class NotionSource(AbstractSource):
                                     source_page_id=inline_page_id,
                                     current_depth=current_depth + 1,
                                     fetch_child_databases=fetch_child_databases,
+                                    global_order_counter=global_order_counter,
                                 ): inline_page_id
                                 for inline_page_id in inline_page_ids
                             }
@@ -440,6 +449,7 @@ class NotionSource(AbstractSource):
                         source_page_id=source_page_id,
                         current_depth=current_depth + 1,
                         fetch_child_databases=fetch_child_databases,
+                        global_order_counter=global_order_counter,
                     )
                     all_blocks.extend(child_blocks)
 
@@ -800,6 +810,7 @@ class NotionSource(AbstractSource):
                         "parent_input_page_id": block.get("parent_input_page_id"),
                         "depth": block.get("depth"),
                         "block_order": block.get("block_order"),
+                        "page_order": block.get("page_order"),
                         "block_raw": block,
                     }
                 )
@@ -1072,6 +1083,7 @@ class NotionSource(AbstractSource):
                         "parent_input_page_id": block.get("parent_input_page_id"),
                         "depth": block.get("depth"),
                         "block_order": block.get("block_order"),
+                        "page_order": block.get("page_order"),
                         "block_raw": block,
                     }
                 )
