@@ -804,6 +804,7 @@ class NotionSource(AbstractSource):
                 parent_input_database_id=item_info["input_db_id"],
                 parent_input_page_id=item_info["input_page_id"],
                 source_page_id=item_info["source_page_id"],
+                fetch_child_databases=False,
             )
 
             # Convert each block to markdown record
