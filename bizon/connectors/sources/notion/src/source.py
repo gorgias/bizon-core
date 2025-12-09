@@ -349,6 +349,7 @@ class NotionSource(AbstractSource):
         parent_input_page_id: Optional[str] = None,
         source_page_id: Optional[str] = None,
         current_depth: int = 0,
+        fetch_child_databases: bool = True,
     ) -> List[dict]:
         """
         Fetch all blocks under a block_id recursively.
@@ -360,6 +361,7 @@ class NotionSource(AbstractSource):
             parent_input_page_id: The original input page ID from config
             source_page_id: The immediate page this block belongs to
             current_depth: Current recursion depth (0 = top level)
+            fetch_child_databases: Whether to recurse into child_database blocks (disable for all_* streams)
 
         Returns:
             Flat list of all blocks with lineage tracking fields
@@ -392,7 +394,11 @@ class NotionSource(AbstractSource):
                 all_blocks.append(block)
 
                 # Handle child_database blocks - fetch their content in parallel
-                if block.get("type") == "child_database" and self.config.fetch_blocks_recursively:
+                if (
+                    block.get("type") == "child_database"
+                    and self.config.fetch_blocks_recursively
+                    and fetch_child_databases
+                ):
                     child_db_id = block.get("id")
                     logger.info(f"Found inline database {child_db_id} at depth {current_depth}, fetching its content")
 
@@ -410,6 +416,7 @@ class NotionSource(AbstractSource):
                                     parent_input_page_id=parent_input_page_id,
                                     source_page_id=inline_page_id,
                                     current_depth=current_depth + 1,
+                                    fetch_child_databases=fetch_child_databases,
                                 ): inline_page_id
                                 for inline_page_id in inline_page_ids
                             }
@@ -432,6 +439,7 @@ class NotionSource(AbstractSource):
                         parent_input_page_id=parent_input_page_id,
                         source_page_id=source_page_id,
                         current_depth=current_depth + 1,
+                        fetch_child_databases=fetch_child_databases,
                     )
                     all_blocks.extend(child_blocks)
 
@@ -444,32 +452,44 @@ class NotionSource(AbstractSource):
 
     def get_blocks(self, pagination: dict = None) -> SourceIteration:
         """
-        Fetch blocks from pages (from databases and page_ids).
+        Fetch blocks from databases and pages.
         Blocks are fetched recursively if fetch_blocks_recursively is True.
         Also fetches content from inline databases (child_database blocks).
         """
         if pagination:
-            # Each item is: {"page_id": str, "input_db_id": str|None, "input_page_id": str|None}
-            pages_to_process = pagination.get("pages_to_process", [])
-            pages_loaded = pagination.get("pages_loaded", False)
+            # Each item is: {"block_id": str, "input_db_id": str|None, "input_page_id": str|None, "source_page_id": str|None}
+            items_to_process = pagination.get("items_to_process", [])
+            items_loaded = pagination.get("items_loaded", False)
         else:
-            pages_to_process = []
-            pages_loaded = False
+            items_to_process = []
+            items_loaded = False
 
-        # First, collect all page IDs from databases and config with their lineage
-        if not pages_loaded:
+        # First, collect all database IDs and page IDs to fetch blocks from
+        if not items_loaded:
             # Add configured page_ids (these are direct input pages)
             for page_id in self.config.page_ids:
-                pages_to_process.append(
+                items_to_process.append(
                     {
-                        "page_id": page_id,
+                        "block_id": page_id,
                         "input_db_id": None,
                         "input_page_id": page_id,
+                        "source_page_id": page_id,
                     }
                 )
 
-            # Collect pages from databases
+            # Add databases themselves and collect their pages
             for db_id in self.config.database_ids:
+                # Add the database itself to fetch its blocks (headers, descriptions, etc.)
+                items_to_process.append(
+                    {
+                        "block_id": db_id,
+                        "input_db_id": db_id,
+                        "input_page_id": None,
+                        "source_page_id": None,  # Database-level blocks have no source page
+                    }
+                )
+
+                # Collect pages from database's data_sources
                 try:
                     db_data = self.get_database(db_id)
                     for ds in db_data.get("data_sources", []):
@@ -477,11 +497,12 @@ class NotionSource(AbstractSource):
                         while True:
                             result = self.query_data_source(ds["id"], cursor)
                             for page in result.get("results", []):
-                                pages_to_process.append(
+                                items_to_process.append(
                                     {
-                                        "page_id": page["id"],
+                                        "block_id": page["id"],
                                         "input_db_id": db_id,
                                         "input_page_id": None,
+                                        "source_page_id": page["id"],
                                     }
                                 )
                             if result.get("has_more"):
@@ -491,40 +512,40 @@ class NotionSource(AbstractSource):
                 except Exception as e:
                     logger.error(f"Failed to collect pages from database {db_id}: {e}")
 
-            pages_loaded = True
+            items_loaded = True
 
-        if not pages_to_process:
+        if not items_to_process:
             return SourceIteration(records=[], next_pagination={})
 
-        # Process a batch of pages in parallel
+        # Process a batch in parallel
         batch_size = self.config.max_workers
-        batch = pages_to_process[:batch_size]
-        pages_to_process = pages_to_process[batch_size:]
+        batch = items_to_process[:batch_size]
+        items_to_process = items_to_process[batch_size:]
 
         records = []
 
-        def fetch_page_blocks(page_info: dict) -> List[dict]:
-            """Fetch all blocks for a single page."""
+        def fetch_item_blocks(item_info: dict) -> List[dict]:
+            """Fetch all blocks for a database or page."""
             return self.fetch_blocks_recursively(
-                block_id=page_info["page_id"],
-                parent_input_database_id=page_info["input_db_id"],
-                parent_input_page_id=page_info["input_page_id"],
-                source_page_id=page_info["page_id"],
+                block_id=item_info["block_id"],
+                parent_input_database_id=item_info["input_db_id"],
+                parent_input_page_id=item_info["input_page_id"],
+                source_page_id=item_info["source_page_id"],
             )
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
-            futures = {executor.submit(fetch_page_blocks, page_info): page_info for page_info in batch}
+            futures = {executor.submit(fetch_item_blocks, item_info): item_info for item_info in batch}
             for future in as_completed(futures):
-                page_info = futures[future]
+                item_info = futures[future]
                 try:
                     blocks = future.result()
                     for block in blocks:
                         records.append(SourceRecord(id=block["id"], data=block))
-                    logger.info(f"Fetched {len(blocks)} blocks from page {page_info['page_id']}")
+                    logger.info(f"Fetched {len(blocks)} blocks from {item_info['block_id']}")
                 except Exception as e:
-                    logger.error(f"Failed to fetch blocks from page {page_info['page_id']}: {e}")
+                    logger.error(f"Failed to fetch blocks from {item_info['block_id']}: {e}")
 
-        next_pagination = {"pages_to_process": pages_to_process, "pages_loaded": True} if pages_to_process else {}
+        next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
@@ -691,24 +712,36 @@ class NotionSource(AbstractSource):
         Returns one record per block with its markdown content.
         """
         if pagination:
-            pages_to_process = pagination.get("pages_to_process", [])
-            pages_loaded = pagination.get("pages_loaded", False)
+            items_to_process = pagination.get("items_to_process", [])
+            items_loaded = pagination.get("items_loaded", False)
         else:
-            pages_to_process = []
-            pages_loaded = False
+            items_to_process = []
+            items_loaded = False
 
-        # Collect all page IDs (same logic as get_blocks)
-        if not pages_loaded:
+        # Collect all database IDs and page IDs to fetch blocks from
+        if not items_loaded:
             for page_id in self.config.page_ids:
-                pages_to_process.append(
+                items_to_process.append(
                     {
-                        "page_id": page_id,
+                        "block_id": page_id,
                         "input_db_id": None,
                         "input_page_id": page_id,
+                        "source_page_id": page_id,
                     }
                 )
 
             for db_id in self.config.database_ids:
+                # Add the database itself to fetch its blocks
+                items_to_process.append(
+                    {
+                        "block_id": db_id,
+                        "input_db_id": db_id,
+                        "input_page_id": None,
+                        "source_page_id": None,
+                    }
+                )
+
+                # Collect pages from database's data_sources
                 try:
                     db_data = self.get_database(db_id)
                     for ds in db_data.get("data_sources", []):
@@ -716,11 +749,12 @@ class NotionSource(AbstractSource):
                         while True:
                             result = self.query_data_source(ds["id"], cursor)
                             for page in result.get("results", []):
-                                pages_to_process.append(
+                                items_to_process.append(
                                     {
-                                        "page_id": page["id"],
+                                        "block_id": page["id"],
                                         "input_db_id": db_id,
                                         "input_page_id": None,
+                                        "source_page_id": page["id"],
                                     }
                                 )
                             if result.get("has_more"):
@@ -730,25 +764,25 @@ class NotionSource(AbstractSource):
                 except Exception as e:
                     logger.error(f"Failed to collect pages from database {db_id}: {e}")
 
-            pages_loaded = True
+            items_loaded = True
 
-        if not pages_to_process:
+        if not items_to_process:
             return SourceIteration(records=[], next_pagination={})
 
-        # Process a batch of pages in parallel
+        # Process a batch in parallel
         batch_size = self.config.max_workers
-        batch = pages_to_process[:batch_size]
-        pages_to_process = pages_to_process[batch_size:]
+        batch = items_to_process[:batch_size]
+        items_to_process = items_to_process[batch_size:]
 
         records = []
 
-        def fetch_and_convert_page(page_info: dict) -> List[dict]:
-            """Fetch blocks for a page and convert each to markdown."""
+        def fetch_and_convert_item(item_info: dict) -> List[dict]:
+            """Fetch blocks for a database or page and convert each to markdown."""
             blocks = self.fetch_blocks_recursively(
-                block_id=page_info["page_id"],
-                parent_input_database_id=page_info["input_db_id"],
-                parent_input_page_id=page_info["input_page_id"],
-                source_page_id=page_info["page_id"],
+                block_id=item_info["block_id"],
+                parent_input_database_id=item_info["input_db_id"],
+                parent_input_page_id=item_info["input_page_id"],
+                source_page_id=item_info["source_page_id"],
             )
 
             # Convert each block to markdown record
@@ -772,18 +806,18 @@ class NotionSource(AbstractSource):
             return block_records
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
-            futures = {executor.submit(fetch_and_convert_page, page_info): page_info for page_info in batch}
+            futures = {executor.submit(fetch_and_convert_item, item_info): item_info for item_info in batch}
             for future in as_completed(futures):
-                page_info = futures[future]
+                item_info = futures[future]
                 try:
                     block_records = future.result()
                     for block_record in block_records:
                         records.append(SourceRecord(id=block_record["block_id"], data=block_record))
-                    logger.info(f"Converted {len(block_records)} blocks to markdown from page {page_info['page_id']}")
+                    logger.info(f"Converted {len(block_records)} blocks to markdown from {item_info['block_id']}")
                 except Exception as e:
-                    logger.error(f"Failed to fetch/convert blocks from page {page_info['page_id']}: {e}")
+                    logger.error(f"Failed to fetch/convert blocks from {item_info['block_id']}: {e}")
 
-        next_pagination = {"pages_to_process": pages_to_process, "pages_loaded": True} if pages_to_process else {}
+        next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
@@ -909,32 +943,33 @@ class NotionSource(AbstractSource):
 
     def get_all_blocks_markdown(self, pagination: dict = None) -> SourceIteration:
         """
-        Fetch all pages accessible to the integration and convert their blocks to markdown.
-        Includes pages from search API AND pages from all databases via data_sources.
+        Fetch all databases and pages accessible to the integration and convert their blocks to markdown.
+        Includes databases and pages from search API AND pages from all databases via data_sources.
         """
         if pagination:
-            pages_to_process = pagination.get("pages_to_process", [])
-            pages_loaded = pagination.get("pages_loaded", False)
+            items_to_process = pagination.get("items_to_process", [])
+            items_loaded = pagination.get("items_loaded", False)
         else:
-            pages_to_process = []
-            pages_loaded = False
+            items_to_process = []
+            items_loaded = False
 
-        # Collect pages from both search API and databases
-        if not pages_loaded:
-            seen_page_ids = set()
+        # Collect databases and pages from search API
+        if not items_loaded:
+            seen_ids = set()
 
             # 1. Get pages from search API
             search_cursor = None
             while True:
                 result = self.search_by_type(object_type="page", start_cursor=search_cursor)
                 for page in result.get("results", []):
-                    if page["id"] not in seen_page_ids:
-                        seen_page_ids.add(page["id"])
-                        pages_to_process.append(
+                    if page["id"] not in seen_ids:
+                        seen_ids.add(page["id"])
+                        items_to_process.append(
                             {
-                                "page_id": page["id"],
+                                "block_id": page["id"],
                                 "input_db_id": None,
                                 "input_page_id": None,
+                                "source_page_id": page["id"],
                             }
                         )
 
@@ -943,9 +978,9 @@ class NotionSource(AbstractSource):
                 else:
                     break
 
-            logger.info(f"Found {len(pages_to_process)} pages from search API")
+            logger.info(f"Found {len(items_to_process)} pages from search API")
 
-            # 2. Get all data_sources and query their pages
+            # 2. Get all data_sources and their parent databases + query for pages
             ds_search_cursor = None
             while True:
                 result = self.search_by_type(object_type="data_source", start_cursor=ds_search_cursor)
@@ -955,19 +990,32 @@ class NotionSource(AbstractSource):
                     parent = ds.get("parent", {})
                     parent_db_id = parent.get("database_id") if parent.get("type") == "database_id" else None
 
+                    # Add the parent database to fetch its blocks (headers, descriptions, etc.)
+                    if parent_db_id and parent_db_id not in seen_ids:
+                        seen_ids.add(parent_db_id)
+                        items_to_process.append(
+                            {
+                                "block_id": parent_db_id,
+                                "input_db_id": parent_db_id,
+                                "input_page_id": None,
+                                "source_page_id": None,
+                            }
+                        )
+
                     try:
                         # Query data_source for pages
                         ds_cursor = None
                         while True:
                             ds_result = self.query_data_source(ds_id, ds_cursor)
                             for page in ds_result.get("results", []):
-                                if page["id"] not in seen_page_ids:
-                                    seen_page_ids.add(page["id"])
-                                    pages_to_process.append(
+                                if page["id"] not in seen_ids:
+                                    seen_ids.add(page["id"])
+                                    items_to_process.append(
                                         {
-                                            "page_id": page["id"],
+                                            "block_id": page["id"],
                                             "input_db_id": parent_db_id,
                                             "input_page_id": None,
+                                            "source_page_id": page["id"],
                                         }
                                     )
                             if ds_result.get("has_more"):
@@ -982,26 +1030,31 @@ class NotionSource(AbstractSource):
                 else:
                     break
 
-            pages_loaded = True
-            logger.info(f"Total {len(pages_to_process)} unique pages to process for all_blocks_markdown")
+            items_loaded = True
+            logger.info(
+                f"Total {len(items_to_process)} unique items (databases + pages) to process for all_blocks_markdown"
+            )
 
-        if not pages_to_process:
+        if not items_to_process:
             return SourceIteration(records=[], next_pagination={})
 
-        # Process a batch of pages in parallel
+        # Process a batch in parallel
         batch_size = self.config.max_workers
-        batch = pages_to_process[:batch_size]
-        pages_to_process = pages_to_process[batch_size:]
+        batch = items_to_process[:batch_size]
+        items_to_process = items_to_process[batch_size:]
 
         records = []
 
-        def fetch_and_convert_page(page_info: dict) -> List[dict]:
-            """Fetch blocks for a page and convert each to markdown."""
+        def fetch_and_convert_item(item_info: dict) -> List[dict]:
+            """Fetch blocks for a database or page and convert each to markdown."""
+            # fetch_child_databases=False because all_blocks_markdown already collects
+            # all pages from all data_sources, so we don't need to recurse into child_database blocks
             blocks = self.fetch_blocks_recursively(
-                block_id=page_info["page_id"],
-                parent_input_database_id=page_info["input_db_id"],
-                parent_input_page_id=page_info["input_page_id"],
-                source_page_id=page_info["page_id"],
+                block_id=item_info["block_id"],
+                parent_input_database_id=item_info["input_db_id"],
+                parent_input_page_id=item_info["input_page_id"],
+                source_page_id=item_info["source_page_id"],
+                fetch_child_databases=False,
             )
 
             # Convert each block to markdown record
@@ -1025,18 +1078,18 @@ class NotionSource(AbstractSource):
             return block_records
 
         with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
-            futures = {executor.submit(fetch_and_convert_page, page_info): page_info for page_info in batch}
+            futures = {executor.submit(fetch_and_convert_item, item_info): item_info for item_info in batch}
             for future in as_completed(futures):
-                page_info = futures[future]
+                item_info = futures[future]
                 try:
                     block_records = future.result()
                     for block_record in block_records:
                         records.append(SourceRecord(id=block_record["block_id"], data=block_record))
-                    logger.info(f"Converted {len(block_records)} blocks to markdown from page {page_info['page_id']}")
+                    logger.info(f"Converted {len(block_records)} blocks to markdown from {item_info['block_id']}")
                 except Exception as e:
-                    logger.error(f"Failed to fetch/convert blocks from page {page_info['page_id']}: {e}")
+                    logger.error(f"Failed to fetch/convert blocks from {item_info['block_id']}: {e}")
 
-        next_pagination = {"pages_to_process": pages_to_process, "pages_loaded": True} if pages_to_process else {}
+        next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
 
         return SourceIteration(records=records, next_pagination=next_pagination)
 
