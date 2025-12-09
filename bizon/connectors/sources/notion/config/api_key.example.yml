@@ -1,0 +1,35 @@
+# Notion Source Configuration
+# This example shows how to configure the Notion source connector
+
+source:
+  name: notion
+  stream: pages  # Options: databases, data_sources, pages, blocks, users
+  authentication:
+    type: api_key
+    params:
+      token: secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Your Notion integration token
+
+  # List of database IDs to fetch data from
+  # Find the ID in the database URL: notion.so/{workspace}/{database_id}?v=...
+  database_ids:
+    - "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    - "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+
+  # List of specific page IDs to fetch (optional)
+  # Find the ID in the page URL: notion.so/{page_id}
+  page_ids:
+    - "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+
+  # Whether to fetch nested blocks recursively (default: true)
+  # Only applies to blocks stream
+  fetch_blocks_recursively: true
+
+  # Number of results per API call (1-100, default: 100)
+  page_size: 100
+
+destination:
+  name: bigquery
+  config:
+    project_id: my-project
+    dataset_id: notion_data
+    # ... other destination config

@@ -201,7 +201,17 @@ class BigQueryDestination(AbstractDestination):
     def finalize(self):
         if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH:
             logger.info(f"Loading temp table {self.temp_table_id} data into {self.table_id} ...")
-            self.bq_client.query(f"CREATE OR REPLACE TABLE {self.table_id} AS SELECT * FROM {self.temp_table_id}")
+            query = f"CREATE OR REPLACE TABLE {self.table_id} AS SELECT * FROM {self.temp_table_id}"
+            result = self.bq_client.query(query)
+            bq_result = result.result()  # Waits for the job to complete
+            logger.info(f"BigQuery CREATE OR REPLACE query result: {bq_result}")
+            # Check if the destination table exists by fetching it; raise if it doesn't exist
+            try:
+                self.bq_client.get_table(self.table_id)
+            except NotFound:
+                logger.error(f"Table {self.table_id} not found")
+                raise Exception(f"Table {self.table_id} not found")
+            # Cleanup
             logger.info(f"Deleting temp table {self.temp_table_id} ...")
             self.bq_client.delete_table(self.temp_table_id, not_found_ok=True)
             return True
