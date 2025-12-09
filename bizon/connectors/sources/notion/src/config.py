@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List
 
 from pydantic import Field
 
@@ -38,7 +38,7 @@ class NotionSourceConfig(SourceConfig):
     max_recursion_depth: int = Field(
         default=5,
         ge=1,
-        le=20,
+        le=100,
         description="Maximum nesting depth for recursive block fetching. Prevents infinite loops.",
     )
     page_size: int = Field(
@@ -52,4 +52,8 @@ class NotionSourceConfig(SourceConfig):
         ge=1,
         le=10,
         description="Number of concurrent workers for fetching blocks. Keep low to respect rate limits.",
+    )
+    database_filters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Map of database_id -> Notion filter object. Filters are passed directly to Notion API.",
     )

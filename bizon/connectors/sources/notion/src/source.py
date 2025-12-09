@@ -169,11 +169,13 @@ class NotionSource(AbstractSource):
 
     # ==================== PAGES STREAM ====================
 
-    def query_data_source(self, data_source_id: str, start_cursor: str = None) -> dict:
+    def query_data_source(self, data_source_id: str, start_cursor: str = None, filter: dict = None) -> dict:
         """Query a data source for its pages."""
         payload = {"page_size": self.config.page_size}
         if start_cursor:
             payload["start_cursor"] = start_cursor
+        if filter:
+            payload["filter"] = filter
 
         response = self.session.post(f"{BASE_URL}/data_sources/{data_source_id}/query", json=payload)
         response.raise_for_status()
@@ -193,8 +195,9 @@ class NotionSource(AbstractSource):
 
         if pagination:
             # Continue previous pagination state
+            # remaining_data_sources is list of {"ds_id": str, "db_id": str}
             remaining_data_sources = pagination.get("remaining_data_sources", [])
-            current_data_source = pagination.get("current_data_source")
+            current_data_source = pagination.get("current_data_source")  # {"ds_id": str, "db_id": str}
             data_source_cursor = pagination.get("data_source_cursor")
             remaining_page_ids = pagination.get("remaining_page_ids", [])
             data_sources_loaded = pagination.get("data_sources_loaded", False)
@@ -211,7 +214,7 @@ class NotionSource(AbstractSource):
                 try:
                     db_data = self.get_database(db_id)
                     for ds in db_data.get("data_sources", []):
-                        remaining_data_sources.append(ds["id"])
+                        remaining_data_sources.append({"ds_id": ds["id"], "db_id": db_id})
                 except Exception as e:
                     logger.error(f"Failed to get data sources from database {db_id}: {e}")
             data_sources_loaded = True
@@ -219,7 +222,8 @@ class NotionSource(AbstractSource):
         # Process current data source if we have one with a cursor
         if current_data_source and data_source_cursor:
             try:
-                result = self.query_data_source(current_data_source, data_source_cursor)
+                ds_filter = self.get_filter_for_database(current_data_source["db_id"])
+                result = self.query_data_source(current_data_source["ds_id"], data_source_cursor, filter=ds_filter)
                 for page in result.get("results", []):
                     records.append(SourceRecord(id=page["id"], data=page))
 
@@ -235,15 +239,16 @@ class NotionSource(AbstractSource):
                         },
                     )
             except Exception as e:
-                logger.error(f"Failed to query data source {current_data_source}: {e}")
+                logger.error(f"Failed to query data source {current_data_source['ds_id']}: {e}")
 
         # Process next data source
         if remaining_data_sources:
-            ds_id = remaining_data_sources[0]
+            ds_info = remaining_data_sources[0]
             remaining_data_sources = remaining_data_sources[1:]
 
             try:
-                result = self.query_data_source(ds_id)
+                ds_filter = self.get_filter_for_database(ds_info["db_id"])
+                result = self.query_data_source(ds_info["ds_id"], filter=ds_filter)
                 for page in result.get("results", []):
                     records.append(SourceRecord(id=page["id"], data=page))
 
@@ -252,7 +257,7 @@ class NotionSource(AbstractSource):
                         records=records,
                         next_pagination={
                             "remaining_data_sources": remaining_data_sources,
-                            "current_data_source": ds_id,
+                            "current_data_source": ds_info,
                             "data_source_cursor": result.get("next_cursor"),
                             "remaining_page_ids": remaining_page_ids,
                             "data_sources_loaded": True,
@@ -272,7 +277,7 @@ class NotionSource(AbstractSource):
                         },
                     )
             except Exception as e:
-                logger.error(f"Failed to query data source {ds_id}: {e}")
+                logger.error(f"Failed to query data source {ds_info['ds_id']}: {e}")
                 # Continue with remaining data sources
                 if remaining_data_sources:
                     return SourceIteration(
@@ -323,17 +328,28 @@ class NotionSource(AbstractSource):
         response.raise_for_status()
         return response.json()
 
-    def get_pages_from_database(self, database_id: str) -> List[str]:
-        """Get all page IDs from a database by querying its data sources."""
+    def get_pages_from_database(self, database_id: str, apply_filter: bool = False) -> List[str]:
+        """Get all page IDs from a database by querying its data sources.
+
+        Args:
+            database_id: The database ID to fetch pages from
+            apply_filter: Whether to apply database_filters config (False for inline databases)
+        """
         page_ids = []
+        db_filter = self.get_filter_for_database(database_id) if apply_filter else None
         try:
             db_data = self.get_database(database_id)
-            for ds in db_data.get("data_sources", []):
+            if not db_data:
+                return page_ids
+            for ds in db_data.get("data_sources") or []:
                 cursor = None
                 while True:
-                    result = self.query_data_source(ds["id"], cursor)
-                    for page in result.get("results", []):
-                        page_ids.append(page["id"])
+                    result = self.query_data_source(ds["id"], cursor, filter=db_filter)
+                    if not result:
+                        break
+                    for page in result.get("results") or []:
+                        if page and page.get("id"):
+                            page_ids.append(page["id"])
                     if result.get("has_more"):
                         cursor = result.get("next_cursor")
                     else:
@@ -384,8 +400,12 @@ class NotionSource(AbstractSource):
 
         while True:
             result = self.get_block_children(block_id, cursor)
+            if not result:
+                break
 
-            for block in result.get("results", []):
+            for block in result.get("results") or []:
+                if not block:
+                    continue
                 # Add lineage tracking
                 block["parent_block_id"] = block_id
                 block["parent_input_database_id"] = parent_input_database_id
@@ -441,7 +461,12 @@ class NotionSource(AbstractSource):
                         logger.error(f"Failed to fetch content from inline database {child_db_id}: {e}")
 
                 # Recursively fetch children if block has children
-                elif block.get("has_children") and self.config.fetch_blocks_recursively:
+                # Skip child_page and child_database - they are references, not containers with inline content
+                elif (
+                    block.get("has_children")
+                    and self.config.fetch_blocks_recursively
+                    and block.get("type") not in ("child_page", "child_database")
+                ):
                     child_blocks = self.fetch_blocks_recursively(
                         block_id=block["id"],
                         parent_input_database_id=parent_input_database_id,
@@ -487,25 +512,15 @@ class NotionSource(AbstractSource):
                     }
                 )
 
-            # Add databases themselves and collect their pages
+            # Collect pages from databases
             for db_id in self.config.database_ids:
-                # Add the database itself to fetch its blocks (headers, descriptions, etc.)
-                items_to_process.append(
-                    {
-                        "block_id": db_id,
-                        "input_db_id": db_id,
-                        "input_page_id": None,
-                        "source_page_id": None,  # Database-level blocks have no source page
-                    }
-                )
-
-                # Collect pages from database's data_sources
                 try:
+                    db_filter = self.get_filter_for_database(db_id)
                     db_data = self.get_database(db_id)
                     for ds in db_data.get("data_sources", []):
                         cursor = None
                         while True:
-                            result = self.query_data_source(ds["id"], cursor)
+                            result = self.query_data_source(ds["id"], cursor, filter=db_filter)
                             for page in result.get("results", []):
                                 items_to_process.append(
                                     {
@@ -561,6 +576,10 @@ class NotionSource(AbstractSource):
 
     # ==================== HELPERS ====================
 
+    def get_filter_for_database(self, database_id: str) -> Optional[dict]:
+        """Get the filter configured for a database, if any."""
+        return self.config.database_filters.get(database_id)
+
     def _extract_title(self, database_data: dict) -> str:
         """Extract plain text title from database object."""
         title_parts = database_data.get("title", [])
@@ -598,7 +617,7 @@ class NotionSource(AbstractSource):
     def _block_to_markdown(self, block: dict) -> str:
         """Convert a single Notion block to markdown string."""
         block_type = block.get("type", "")
-        content = block.get(block_type, {})
+        content = block.get(block_type) or {}
 
         # Text blocks
         if block_type == "paragraph":
@@ -627,7 +646,8 @@ class NotionSource(AbstractSource):
             return f"> {self._extract_rich_text(content.get('rich_text', []))}"
 
         elif block_type == "callout":
-            emoji = content.get("icon", {}).get("emoji", "💡")
+            icon = content.get("icon") or {}
+            emoji = icon.get("emoji", "💡")
             text = self._extract_rich_text(content.get("rich_text", []))
             return f"> {emoji} {text}"
 
@@ -741,23 +761,14 @@ class NotionSource(AbstractSource):
                 )
 
             for db_id in self.config.database_ids:
-                # Add the database itself to fetch its blocks
-                items_to_process.append(
-                    {
-                        "block_id": db_id,
-                        "input_db_id": db_id,
-                        "input_page_id": None,
-                        "source_page_id": None,
-                    }
-                )
-
                 # Collect pages from database's data_sources
                 try:
+                    db_filter = self.get_filter_for_database(db_id)
                     db_data = self.get_database(db_id)
                     for ds in db_data.get("data_sources", []):
                         cursor = None
                         while True:
-                            result = self.query_data_source(ds["id"], cursor)
+                            result = self.query_data_source(ds["id"], cursor, filter=db_filter)
                             for page in result.get("results", []):
                                 items_to_process.append(
                                     {
@@ -797,11 +808,13 @@ class NotionSource(AbstractSource):
 
             # Convert each block to markdown record
             block_records = []
-            for block in blocks:
+            for block in blocks or []:
+                if not block:
+                    continue
                 md = self._block_to_markdown(block)
                 block_records.append(
                     {
-                        "block_id": block["id"],
+                        "block_id": block.get("id"),
                         "block_type": block.get("type"),
                         "markdown": md,
                         "source_page_id": block.get("source_page_id"),
@@ -823,10 +836,14 @@ class NotionSource(AbstractSource):
                 try:
                     block_records = future.result()
                     for block_record in block_records:
-                        records.append(SourceRecord(id=block_record["block_id"], data=block_record))
+                        records.append(SourceRecord(id=block_record.get("block_id"), data=block_record))
                     logger.info(f"Converted {len(block_records)} blocks to markdown from {item_info['block_id']}")
                 except Exception as e:
-                    logger.error(f"Failed to fetch/convert blocks from {item_info['block_id']}: {e}")
+                    import traceback
+
+                    logger.error(
+                        f"Failed to fetch/convert blocks from {item_info['block_id']}: {e}\n{traceback.format_exc()}"
+                    )
 
         next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
 
@@ -1014,7 +1031,7 @@ class NotionSource(AbstractSource):
                         )
 
                     try:
-                        # Query data_source for pages
+                        # Query data_source for pages (no filter for all_* streams)
                         ds_cursor = None
                         while True:
                             ds_result = self.query_data_source(ds_id, ds_cursor)
@@ -1070,11 +1087,13 @@ class NotionSource(AbstractSource):
 
             # Convert each block to markdown record
             block_records = []
-            for block in blocks:
+            for block in blocks or []:
+                if not block:
+                    continue
                 md = self._block_to_markdown(block)
                 block_records.append(
                     {
-                        "block_id": block["id"],
+                        "block_id": block.get("id"),
                         "block_type": block.get("type"),
                         "markdown": md,
                         "source_page_id": block.get("source_page_id"),
@@ -1096,7 +1115,7 @@ class NotionSource(AbstractSource):
                 try:
                     block_records = future.result()
                     for block_record in block_records:
-                        records.append(SourceRecord(id=block_record["block_id"], data=block_record))
+                        records.append(SourceRecord(id=block_record.get("block_id"), data=block_record))
                     logger.info(f"Converted {len(block_records)} blocks to markdown from {item_info['block_id']}")
                 except Exception as e:
                     logger.error(f"Failed to fetch/convert blocks from {item_info['block_id']}: {e}")
