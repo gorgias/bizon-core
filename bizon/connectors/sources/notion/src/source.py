@@ -467,16 +467,23 @@ class NotionSource(AbstractSource):
                     and self.config.fetch_blocks_recursively
                     and block.get("type") not in ("child_page", "child_database")
                 ):
-                    child_blocks = self.fetch_blocks_recursively(
-                        block_id=block["id"],
-                        parent_input_database_id=parent_input_database_id,
-                        parent_input_page_id=parent_input_page_id,
-                        source_page_id=source_page_id,
-                        current_depth=current_depth + 1,
-                        fetch_child_databases=fetch_child_databases,
-                        global_order_counter=global_order_counter,
-                    )
-                    all_blocks.extend(child_blocks)
+                    try:
+                        child_blocks = self.fetch_blocks_recursively(
+                            block_id=block["id"],
+                            parent_input_database_id=parent_input_database_id,
+                            parent_input_page_id=parent_input_page_id,
+                            source_page_id=source_page_id,
+                            current_depth=current_depth + 1,
+                            fetch_child_databases=fetch_child_databases,
+                            global_order_counter=global_order_counter,
+                        )
+                        all_blocks.extend(child_blocks)
+                    except Exception as e:
+                        # synced_block can return 404 if original block is inaccessible
+                        if block.get("type") == "synced_block":
+                            logger.warning(f"Skipping synced_block {block.get('id')} - children inaccessible: {e}")
+                        else:
+                            logger.error(f"Failed to fetch children of block {block.get('id')}: {e}")
 
             if result.get("has_more"):
                 cursor = result.get("next_cursor")
