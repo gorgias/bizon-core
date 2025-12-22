@@ -104,3 +104,19 @@ class AbstractSource(ABC):
     def commit(self):
         """Commit the records to the source"""
         pass
+
+    def set_streams_config(self, streams: list) -> None:
+        """Optional method for sources that support stream routing.
+
+        This method is called by the runner when a top-level 'streams' configuration
+        is present in the BizonConfig. Sources can override this method to accept
+        and use stream-based routing instead of legacy configuration.
+
+        Args:
+            streams: List of StreamConfig objects from BizonConfig.streams
+
+        Example:
+            For a Kafka source, this method can extract topic-to-destination mappings
+            from the streams config and override the legacy topic_map.
+        """
+        pass

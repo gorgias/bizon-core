@@ -203,7 +203,7 @@ class BigQueryDestination(AbstractDestination):
             logger.info(f"Loading temp table {self.temp_table_id} data into {self.table_id} ...")
             query = f"CREATE OR REPLACE TABLE {self.table_id} AS SELECT * FROM {self.temp_table_id}"
             result = self.bq_client.query(query)
-            bq_result = result.result()  # Waits for the job to complete
+            bq_result = result.result()  # Waits for the job to completew
             logger.info(f"BigQuery CREATE OR REPLACE query result: {bq_result}")
             # Check if the destination table exists by fetching it; raise if it doesn't exist
             try:
