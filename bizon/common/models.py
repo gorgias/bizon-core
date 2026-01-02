@@ -16,7 +16,6 @@ from bizon.connectors.destinations.bigquery_streaming_v2.src.config import (
 from bizon.connectors.destinations.file.src.config import FileDestinationConfig
 from bizon.connectors.destinations.logger.src.config import LoggerConfig
 from bizon.engine.config import EngineConfig
-from bizon.engine.runner.config import RunnerTypes
 from bizon.monitoring.config import MonitoringConfig
 from bizon.source.config import SourceConfig, SourceSyncModes
 from bizon.transform.config import TransformModel
@@ -159,18 +158,17 @@ class BizonConfig(BaseModel):
             duplicates = [tid for tid in table_ids if table_ids.count(tid) > 1]
             raise ValueError(f"Duplicate table_ids found in streams configuration: {set(duplicates)}")
 
-        # Validate that runner type is 'stream' if streams config is used
+        # Validate that source sync_mode is 'stream' if streams config is used
         if hasattr(info, "data") and info.data:
-            engine_config = info.data.get("engine")
-            if engine_config and hasattr(engine_config, "runner"):
-                if engine_config.runner.type != RunnerTypes.STREAM:
+            source_config = info.data.get("source")
+            if source_config and hasattr(source_config, "sync_mode"):
+                if source_config.sync_mode != SourceSyncModes.STREAM:
                     raise ValueError(
-                        f"Configuration Error: 'streams' configuration requires engine.runner.type='stream'. "
-                        f"Current runner type: {engine_config.runner.type}. "
+                        f"Configuration Error: 'streams' configuration requires source.sync_mode='stream'. "
+                        f"Current sync_mode: {source_config.sync_mode}. "
                         f"Please update your config to use:\n"
-                        f"  engine:\n"
-                        f"    runner:\n"
-                        f"      type: stream"
+                        f"  source:\n"
+                        f"    sync_mode: stream"
                     )
 
         return v
