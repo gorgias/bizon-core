@@ -1,6 +1,6 @@
 # Adding a New Destination Connector
 
-Destinations receive Polars DataFrames and write them to target systems. Unlike sources, destinations require **manual registration in 3 places**.
+Destinations receive Polars DataFrames and write them to target systems. Unlike sources, [Bizon](https://getbizon.io) destinations require **manual registration in 3 places**.
 
 ## Directory Structure
 

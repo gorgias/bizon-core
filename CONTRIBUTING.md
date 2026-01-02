@@ -1,5 +1,7 @@
 # Contributing to Bizon
 
+[Bizon](https://getbizon.io) is a Python-based data extraction and loading (EL) framework. Thanks for contributing!
+
 ## Quick Start
 
 ```bash
