@@ -85,6 +85,39 @@ Required methods:
 - `get(pagination)` - Fetch records (returns `SourceIteration`)
 - `get_records_after()` - For incremental sync support (optional)
 
+### AI-Assisted Connector Generation
+
+When asked to create a new source connector from API documentation:
+
+1. **Read the guide first**: `docs/ai-connector-guide.md` contains:
+   - Extraction checklists (what to find in API docs)
+   - Decision trees (auth type, pagination pattern)
+   - Code templates with placeholders
+   - Example config file templates
+   - Validation checklist
+
+2. **Reference implementation**: `docs/reference-connector.md` provides:
+   - Fully annotated production-ready connector
+   - Line-by-line explanations
+   - Common patterns for pagination, auth, error handling
+
+3. **Workflow**:
+   ```
+   API Docs URL → Extract info (Step 1) → Generate code (Step 2) →
+   Generate config (Step 5) → Validate (Step 4)
+   ```
+
+4. **Files to create**:
+   ```
+   bizon/connectors/sources/{source_name}/
+   ├── config/
+   │   └── {source_name}.example.yml
+   └── src/
+       ├── __init__.py
+       ├── config.py
+       └── source.py
+   ```
+
 ### Adding New Destinations
 
 Create:
