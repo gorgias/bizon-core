@@ -7,7 +7,6 @@ from bizon.alerting.models import AlertingConfig, AlertMethod, LogLevel
 
 
 class AbstractAlert(ABC):
-
     def __init__(self, type: AlertMethod, config: AlertingConfig, log_levels: List[LogLevel] = [LogLevel.ERROR]):
         self.type = type
         self.config = config

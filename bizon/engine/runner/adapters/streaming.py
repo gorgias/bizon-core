@@ -60,7 +60,7 @@ class StreamingRunner(AbstractRunner):
         # Let the source enrich its own config from streams
         # Note: source modifies self.config, which is a reference to bizon_config.source
         # This ensures init_job (which creates a new source) sees the enriched config
-        if source and hasattr(source, "set_streams_config") and callable(getattr(source, "set_streams_config")):
+        if source and hasattr(source, "set_streams_config") and callable(source.set_streams_config):
             source.set_streams_config(self.bizon_config.streams)
 
         # Build record_schemas list for destination from streams config
@@ -113,7 +113,6 @@ class StreamingRunner(AbstractRunner):
         iteration = 0
 
         while True:
-
             if source.config.max_iterations and iteration > source.config.max_iterations:
                 logger.info(f"Max iterations {source.config.max_iterations} reached, terminating stream ...")
                 break

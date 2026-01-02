@@ -24,7 +24,6 @@ class RabbitMQConsumer(AbstractQueueConsumer):
         channel.queue_declare(queue=self.config.queue.queue_name)
 
         for method_frame, properties, body in channel.consume(self.config.queue.queue_name):
-
             queue_message = QueueMessage.model_validate_json(body)
             if queue_message.signal == QUEUE_TERMINATION:
                 logger.info("Received termination signal, waiting for destination to close gracefully ...")

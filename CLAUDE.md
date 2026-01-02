@@ -11,26 +11,29 @@ Bizon is a Python-based data extraction and loading (EL) framework for processin
 ```bash
 # Install dependencies
 make install                    # Full install with dev/test dependencies
-poetry install --with test      # Install with test dependencies only
+uv sync --group test            # Install with test dependencies only
+uv sync --all-extras            # Install with all extras (postgres, kafka, etc.)
 
 # Run tests
-poetry run pytest               # Run all tests
-poetry run pytest tests/path/to/test_file.py -k "test_name"  # Single test
+uv run pytest                   # Run all tests
+uv run pytest tests/path/to/test_file.py -k "test_name"  # Single test
 
 # Format code
-make format                     # Run pre-commit (black + isort)
-pre-commit run --all-files      # Equivalent
+make format                     # Run Ruff formatter and linter
+uv run ruff format .            # Format only
+uv run ruff check --fix .       # Lint and auto-fix
 
 # CLI commands
-bizon run config.yml            # Run a pipeline from YAML config
-bizon source list               # List available sources
-bizon stream list <source>      # List streams for a source
+uv run bizon run config.yml     # Run a pipeline from YAML config
+uv run bizon source list        # List available sources
+uv run bizon stream list <source>  # List streams for a source
 ```
 
 ## Code Style
 
-- Black formatter with line length 120
-- isort with black profile for import sorting
+- Ruff formatter with line length 120
+- Ruff linter with isort rules for import sorting
+- Configuration in `pyproject.toml` under `[tool.ruff]`
 
 ## Architecture
 

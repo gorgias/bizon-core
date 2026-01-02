@@ -35,7 +35,6 @@ class PythonQueueConsumer(AbstractQueueConsumer):
         self.monitor.track_pipeline_status(PipelineReturnStatus.RUNNING)
 
     def run(self, stop_event: Union[threading.Event, multiprocessing.synchronize.Event]) -> PipelineReturnStatus:
-
         while True:
             # Handle kill signal from the runner
             if stop_event.is_set():

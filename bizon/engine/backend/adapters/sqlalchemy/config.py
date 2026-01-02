@@ -55,7 +55,6 @@ class SQLiteInMemoryConfig(AbstractBackendConfig):
 
 ## BIGQUERY ##
 class BigQueryConfigDetails(SQLAlchemyConfigDetails):
-
     database: str = Field(
         description="GCP Project name",
         default=...,

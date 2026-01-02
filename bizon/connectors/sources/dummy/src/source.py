@@ -1,4 +1,3 @@
-import random
 from typing import List, Literal, Tuple, Union
 
 from pydantic import Field
@@ -28,7 +27,6 @@ class DummySourceConfig(SourceConfig):
 
 
 class DummySource(AbstractSource):
-
     def __init__(self, config: DummySourceConfig):
         super().__init__(config)
         self.config = config
@@ -46,7 +44,6 @@ class DummySource(AbstractSource):
         return f"https://api.dummy.com/v1/{self.config.stream}"
 
     def get_authenticator(self) -> AuthBase:
-
         if self.config.authentication.type == AuthType.OAUTH:
             return AuthBuilder.oauth2(
                 params=Oauth2AuthParams(
@@ -69,7 +66,6 @@ class DummySource(AbstractSource):
         return 5
 
     def get(self, pagination: dict = None) -> SourceIteration:
-
         response: dict = None
 
         # If no pagination data is passed, we want to reach first page

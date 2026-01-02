@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from typing import Dict
 
-from bizon.common.models import BizonConfig, SyncMetadata
+from bizon.common.models import SyncMetadata
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.monitoring.config import MonitoringConfig
 from bizon.monitoring.monitor import AbstractMonitor

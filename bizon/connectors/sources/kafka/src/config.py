@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from enum import Enum
-from typing import Any, List, Literal, Mapping, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,7 +18,6 @@ class MessageEncoding(str, Enum):
 
 
 class KafkaAuthConfig(AuthConfig):
-
     type: Literal[AuthType.BASIC] = AuthType.BASIC  # username and password authentication
 
     # Schema registry authentication
@@ -45,7 +45,6 @@ class TopicConfig(BaseModel):
 
 
 class KafkaSourceConfig(SourceConfig):
-
     # Kafka configuration
     topics: Optional[List[TopicConfig]] = Field(
         default=[],

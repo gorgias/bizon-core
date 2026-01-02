@@ -46,7 +46,6 @@ class Session(requests.Session):
         *args,
         **kwargs,
     ) -> requests.Response:
-
         self.headers.update({"content-type": content_type})
 
         try:

@@ -98,7 +98,6 @@ class BigQueryRecordSchemaConfig(BaseModel):
 
 
 class BigQueryConfigDetails(AbstractDestinationDetailsConfig):
-
     # Table details
     project_id: str = Field(..., description="BigQuery Project ID")
     dataset_id: str = Field(..., description="BigQuery Dataset ID")

@@ -1,6 +1,7 @@
 import json
 import re
-from typing import Any, Counter, List, Tuple, Type
+from collections import Counter
+from typing import Any, List, Tuple
 from uuid import uuid4
 
 import google.auth
@@ -34,7 +35,6 @@ class GsheetsSourceConfig(SourceConfig):
 
 
 class GsheetsSource(AbstractSource):
-
     def __init__(self, config: GsheetsSourceConfig):
         super().__init__(config)
         self.config: GsheetsSourceConfig = config
@@ -49,7 +49,6 @@ class GsheetsSource(AbstractSource):
         return GsheetsSourceConfig
 
     def get_gspread_client(self) -> gspread.client.Client:
-
         if self.config.service_account_key:
             # use creds to create a client to interact with the Google Drive API
             credentials_dict = json.loads(self.config.service_account_key)

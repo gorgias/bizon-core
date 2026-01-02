@@ -1,4 +1,5 @@
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 from requests import PreparedRequest

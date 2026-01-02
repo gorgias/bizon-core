@@ -5,12 +5,11 @@ from requests.auth import AuthBase
 
 from .callback import AbstractSourceCallback, NoOpSourceCallback
 from .config import SourceConfig
-from .models import SourceIncrementalState, SourceIteration, SourceRecord
+from .models import SourceIncrementalState, SourceIteration
 from .session import Session
 
 
 class AbstractSource(ABC):
-
     def __init__(self, config: SourceConfig):
         self.config = config
         self.session = self.get_session()

@@ -19,7 +19,6 @@ URL_TOKEN_REFRESH = f"{URL_BASE}/oauth/v1/token"
 
 
 class HubSpotBaseSource(AbstractSource, ABC):
-
     def get_session(self) -> Session:
         """Apply custom strategy for HubSpot"""
         session = Session()

@@ -37,7 +37,6 @@ class RunnerFuturesConfig(BaseModel):
 
 
 class RunnerConfig(BaseModel):
-
     type: RunnerTypes = Field(
         description="Runner to use for the pipeline",
         default=RunnerTypes.THREAD,

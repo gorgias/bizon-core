@@ -1,6 +1,7 @@
 import json
+from collections.abc import Generator
 from enum import Enum
-from typing import Any, Generator, List, Optional
+from typing import List, Optional
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -31,7 +32,6 @@ class HubSpotSourceConfig(SourceConfig):
 
 
 class HubSpotObjectsSource(HubSpotBaseSource):
-
     api_version = "v3"
 
     object_path = f"crm/{api_version}/objects"
@@ -75,7 +75,6 @@ class HubSpotObjectsSource(HubSpotBaseSource):
         payload: Optional[dict] = None,
         headers=None,
     ) -> Generator[dict, None, None]:
-
         # Call HubSpot API
         response = self.session.call(
             method=method,
@@ -164,7 +163,7 @@ class HubSpotObjectsSource(HubSpotBaseSource):
             payload={"filterGroups": [{"filters": [{"operator": "HAS_PROPERTY", "propertyName": "hs_object_id"}]}]},
         )
         total = search_response["total"]
-        logger.info(f"Number of {self.object} in HubSpot: {'{:,}'.format(total).replace(',', ' ')}")
+        logger.info(f"Number of {self.object} in HubSpot: {f'{total:,}'.replace(',', ' ')}")
         return total
 
     def list_properties(self) -> AllObjectProperties:
