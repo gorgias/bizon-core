@@ -1,0 +1,79 @@
+# BigQuery Streaming V2 Destination Configuration
+# Uses the BigQuery Storage Write API (v2) for improved streaming performance
+#
+# Use this destination when:
+# - You need the latest BigQuery streaming features
+# - Working with high-volume streaming data
+# - Require better error handling and retry logic
+#
+# Differences from v1:
+# - Improved batching and retry logic
+# - Better handling of schema evolution
+# - Enhanced error reporting
+#
+# Requirements:
+# - Service account with bigquery.dataEditor role
+# - Dataset must already exist
+
+name: source_to_bigquery_streaming_v2
+
+source:
+  name: <YOUR_SOURCE>
+  stream: <YOUR_STREAM>
+  authentication:
+    type: api_key
+    params:
+      token: <YOUR_API_KEY>
+
+destination:
+  name: bigquery_streaming_v2
+  config:
+    # GCP Project ID
+    project_id: <YOUR_GCP_PROJECT>
+
+    # BigQuery dataset (must exist)
+    dataset_id: <YOUR_DATASET>
+
+    # Dataset location (US, EU, etc.)
+    dataset_location: US
+
+    # Time partitioning (optional)
+    time_partitioning:
+      type: DAY  # Options: DAY, HOUR, MONTH, YEAR
+      field: _bizon_loaded_at
+
+    # Max rows per streaming request (max 10000)
+    bq_max_rows_per_request: 5000
+
+    # Buffer settings
+    buffer_size: 50           # MB before flushing
+    buffer_flush_timeout: 300  # Seconds before forcing flush
+
+    # Authentication (optional - uses ADC if not provided)
+    # authentication:
+    #   service_account_key: |
+    #     {
+    #       "type": "service_account",
+    #       "project_id": "<YOUR_GCP_PROJECT>",
+    #       ...
+    #     }
+
+    # Schema definition for unnesting (optional)
+    # Required if unnest: true
+    # unnest: true
+    # record_schemas:
+    #   - destination_id: my_table
+    #     record_schema:
+    #       - name: id
+    #         type: STRING
+    #         mode: REQUIRED
+    #       - name: created_at
+    #         type: TIMESTAMP
+    #         mode: NULLABLE
+
+engine:
+  backend:
+    type: bigquery
+    database: <YOUR_GCP_PROJECT>
+    schema: bizon_state
+    syncCursorInDBEvery: 10

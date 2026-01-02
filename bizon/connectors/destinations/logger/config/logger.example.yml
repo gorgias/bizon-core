@@ -1,0 +1,30 @@
+# Logger Destination Configuration
+# Prints records to console - useful for testing and debugging
+#
+# Use this destination when:
+# - Testing a new source connector
+# - Debugging data extraction issues
+# - Verifying record structure before loading to production
+
+name: source_to_logger
+
+source:
+  name: <YOUR_SOURCE>
+  stream: <YOUR_STREAM>
+  authentication:
+    type: api_key
+    params:
+      token: <YOUR_API_KEY>
+
+destination:
+  name: logger
+  config:
+    dummy: bizon  # Required placeholder field
+
+# Optional: Use in-memory backend for testing (no persistence)
+engine:
+  backend:
+    type: sqlite_in_memory
+    config:
+      database: not_used
+      schema: not_used
