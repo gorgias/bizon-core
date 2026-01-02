@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, List, Literal, Mapping
+from typing import Any, List, Literal, Mapping, Optional
 
 from pydantic import BaseModel, Field
 
@@ -46,8 +46,11 @@ class TopicConfig(BaseModel):
 
 class KafkaSourceConfig(SourceConfig):
 
-    # Mandatory Kafka configuration
-    topics: List[TopicConfig] = Field(..., description="Kafka topic, comma separated")
+    # Kafka configuration
+    topics: Optional[List[TopicConfig]] = Field(
+        default=[],
+        description="Kafka topics. Can be empty if using streams configuration to define topics.",
+    )
     bootstrap_servers: str = Field(..., description="Kafka bootstrap servers")
     group_id: str = Field(default="bizon", description="Kafka group id")
 
