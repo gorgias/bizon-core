@@ -46,7 +46,7 @@ def test_backend_factory_postgres():
 
 
 @pytest.mark.skipif(
-    os.getenv("POETRY_ENV_TEST") == "CI",
+    os.getenv("CI") is not None,
     reason="Skipping tests that require a BigQuery database",
 )
 def test_backend_factory_bigquery():
