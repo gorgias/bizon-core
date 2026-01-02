@@ -8,7 +8,6 @@ from .config import TransformModel
 
 
 class Transform:
-
     def __init__(self, transforms: list[TransformModel]):
         self.transforms = transforms
 
@@ -17,12 +16,10 @@ class Transform:
 
         # Process the transformations
         for transform in self.transforms:
-
             logger.debug(f"Applying transform {transform.label}")
 
             # Create a function to be executed in the desired context
             def my_transform(data: str) -> str:
-
                 data = json.loads(data)
 
                 # Start writing here

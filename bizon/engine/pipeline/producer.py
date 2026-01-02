@@ -105,7 +105,6 @@ class Producer:
     def run(
         self, job_id: int, stop_event: Union[multiprocessing.synchronize.Event, threading.Event]
     ) -> PipelineReturnStatus:
-
         return_value: PipelineReturnStatus = PipelineReturnStatus.SUCCESS
 
         # Init queue
@@ -132,7 +131,6 @@ class Producer:
             return PipelineReturnStatus.BACKEND_ERROR
 
         while not cursor.is_finished:
-
             if stop_event.is_set():
                 logger.info("Stop event is set, terminating producer ...")
                 return PipelineReturnStatus.KILLED_BY_RUNNER
@@ -226,9 +224,7 @@ class Producer:
             items_in_queue = f"{self.queue.get_size()} items in queue." if self.queue.get_size() else ""
 
             logger.info(
-                (
-                    f"Iteration {cursor.iteration} finished in {datetime.now(tz=UTC) - timestamp_start_iteration}. {items_in_queue}"
-                )
+                f"Iteration {cursor.iteration} finished in {datetime.now(tz=UTC) - timestamp_start_iteration}. {items_in_queue}"
             )
 
         logger.info("Terminating destination ...")

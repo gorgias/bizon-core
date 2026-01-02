@@ -16,7 +16,6 @@ Usage:
 """
 
 import os
-from pprint import pprint
 
 from bizon.connectors.sources.notion.src.config import NotionSourceConfig, NotionStreams
 from bizon.connectors.sources.notion.src.source import NotionSource

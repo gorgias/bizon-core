@@ -21,7 +21,6 @@ def replace_env_variables_in_config(config: dict) -> dict:
 class RunnerFactory:
     @staticmethod
     def create_from_config_dict(config: dict) -> AbstractRunner:
-
         # Replace env variables in config
         config = replace_env_variables_in_config(config=config)
 

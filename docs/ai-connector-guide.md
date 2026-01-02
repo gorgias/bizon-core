@@ -469,8 +469,8 @@ After generating the connector, verify:
 - [ ] Rate limiting is configured with appropriate retries
 
 ### Testing
-- [ ] `poetry run pytest` passes
-- [ ] Manual test with `bizon run config.yml` works
+- [ ] `uv run pytest` passes
+- [ ] Manual test with `uv run bizon run config.yml` works
 - [ ] Pagination exhausts all records correctly
 
 ## Step 5: Generate Example Config Files

@@ -89,7 +89,6 @@ class StreamConfig(BaseModel):
 
 
 class BizonConfig(BaseModel):
-
     # Forbid extra keys in the model
     model_config = ConfigDict(extra="forbid")
 

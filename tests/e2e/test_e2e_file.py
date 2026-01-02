@@ -8,9 +8,7 @@ from bizon.engine.engine import RunnerFactory
 
 
 def test_e2e_dummy_to_file():
-
     with tempfile.NamedTemporaryFile(delete=False) as temp:
-
         BIZON_CONFIG_DUMMY_TO_FILE = f"""
         name: test_job_11
 
@@ -51,7 +49,7 @@ def test_e2e_dummy_to_file():
         runner.run()
 
         records_extracted = {}
-        with open(f"{temp.name}.json", "r") as file:
+        with open(f"{temp.name}.json") as file:
             for line in file.readlines():
                 record: dict = json.loads(line.strip())
                 records_extracted[record["source_record_id"]] = record["source_data"]

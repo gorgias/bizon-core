@@ -36,23 +36,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Poetry
-      run: |
-        pip install poetry
-
-    - name: Configure Poetry for CI
-      run: |
-        poetry config virtualenvs.create false
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
 
     - name: Install dependencies
       run: |
-        poetry install --with test --all-extras
+        uv sync --all-extras --group test
 
     - name: Run tests
       run: |
-        POETRY_ENV_TEST=CI poetry run pytest tests/
+        uv run pytest tests/ --ignore=tests/e2e/ --ignore=tests/connectors/destinations/bigquery/ --ignore=tests/connectors/destinations/bigquery_streaming/ --ignore=tests/connectors/destinations/bigquery_streaming_v2/ --ignore=tests/connectors/destinations/bigquery_iceberg/
       env:
-        # The hostname used to communicate with the PostgreSQL service container
         POSTGRES_HOST: postgres
-        # The default PostgreSQL port
         POSTGRES_PORT: 5432

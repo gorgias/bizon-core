@@ -13,7 +13,6 @@ from .consumer import RabbitMQConsumer
 
 
 class RabbitMQ(AbstractQueue):
-
     def __init__(self, config: RabbitMQConfigDetails) -> None:
         super().__init__(config)
         self.config: RabbitMQConfigDetails = config

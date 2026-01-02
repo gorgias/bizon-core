@@ -24,7 +24,7 @@ sleep 15
 cd ../../..
 export KAFKA_HOST=localhost:9092
 export KAFKA_E2E_TESTS=1
-poetry run pytest tests/e2e/kafka/test_e2e_kafka_auth_failures.py -v
+uv run pytest tests/e2e/kafka/test_e2e_kafka_auth_failures.py -v
 
 # Cleanup
 cd tests/e2e/kafka

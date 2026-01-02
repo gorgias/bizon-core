@@ -22,7 +22,6 @@ from .config import BigQueryColumn, BigQueryConfigDetails
 
 
 class BigQueryDestination(AbstractDestination):
-
     def __init__(
         self,
         sync_metadata: SyncMetadata,
@@ -56,7 +55,6 @@ class BigQueryDestination(AbstractDestination):
 
     @property
     def temp_table_id(self) -> str:
-
         if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH:
             return f"{self.table_id}_temp"
 
@@ -67,7 +65,6 @@ class BigQueryDestination(AbstractDestination):
             return f"{self.table_id}"
 
     def get_bigquery_schema(self, df_destination_records: pl.DataFrame) -> List[bigquery.SchemaField]:
-
         # Case we unnest the data
         if self.config.unnest:
             return [
@@ -113,9 +110,7 @@ class BigQueryDestination(AbstractDestination):
     # https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.dbapi.DataError
 
     def convert_and_upload_to_buffer(self, df_destination_records: pl.DataFrame) -> str:
-
         if self.buffer_format == "parquet":
-
             # Upload the Parquet file to GCS
             file_name = f"{self.sync_metadata.source_name}/{self.sync_metadata.stream_name}/{str(uuid4())}.parquet"
 
@@ -153,7 +148,6 @@ class BigQueryDestination(AbstractDestination):
         )
 
     def load_to_bigquery(self, gcs_file: str, df_destination_records: pl.DataFrame):
-
         # We always partition by the loaded_at field
         time_partitioning = TimePartitioning(field="_bizon_loaded_at", type_=self.config.time_partitioning)
 
@@ -171,7 +165,6 @@ class BigQueryDestination(AbstractDestination):
         assert result.state == "DONE", f"Job failed with state {result.state} with error {result.error_result}"
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:
-
         # Rename fields to match BigQuery schema
         df_destination_records = df_destination_records.rename(
             {

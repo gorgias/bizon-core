@@ -41,7 +41,6 @@ class PeriscopeSourceConfig(SourceConfig):
 
 
 class PeriscopeSource(AbstractSource):
-
     def __init__(self, config: PeriscopeSourceConfig):
         super().__init__(config)
         self.config: PeriscopeSourceConfig = config
@@ -127,7 +126,6 @@ class PeriscopeSource(AbstractSource):
         return self.transform_response_to_source_iteration(records_json)
 
     def get_dashboards_metadata(self, pagination: dict = None) -> SourceIteration:
-
         params = {
             "client_site_id": self.config.client_site_id,
             "filters": [{"name": "typeFilter", "input": "Dashboard"}],
@@ -186,7 +184,6 @@ class PeriscopeSource(AbstractSource):
         dashboard_charts: List[dict] = []
 
         for iter_count in range(MAXIMUM_ITERATION):
-
             # Break the loop if no more charts are available
             if iter_count > 0 and len(iter_charts) == 0:
                 break
@@ -217,10 +214,8 @@ class PeriscopeSource(AbstractSource):
                 iter_textboxes = response.json().get("TextBox")
 
                 for chart in iter_charts:
-                    # Only fetch charts connected to gorgias-growth-production
                     if str(chart.get("database_id")) == str(self.config.database_id):
                         if chart.get("id") not in charts_list:
-
                             charts_list.add(chart.get("id"))
 
                             chart["raw_text"] = None
@@ -250,7 +245,6 @@ class PeriscopeSource(AbstractSource):
         return dashboard_charts
 
     def get_charts(self, pagination: dict = None) -> SourceIteration:
-
         BATCH_SIZE = 10
 
         if not pagination:

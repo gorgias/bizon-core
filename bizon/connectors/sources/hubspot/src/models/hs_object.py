@@ -40,7 +40,6 @@ class HubSpotObject(BaseModel):
         cls,
         raw_obj: dict,
     ):
-
         properties = {}
 
         for property_name, property_value in raw_obj.get("properties", {}).items():

@@ -9,7 +9,6 @@ from .models import destination_record_schema
 
 
 class DestinationBuffer:
-
     def __init__(self, buffer_size: int, buffer_flush_timeout: int) -> None:
         self.buffer_size = buffer_size * 1024 * 1024  # Convert to bytes
         self.buffer_flush_timeout = buffer_flush_timeout

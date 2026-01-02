@@ -1,9 +1,11 @@
 # Contributing
 
 ## Local setup
-- Install poetry: `pip install poetry`
-- Activate the virtual environment: `poetry shell`
-- Install dependencies: `poetry install --all-extras`
+- Install uv: `pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Install dependencies: `uv sync --all-extras --all-groups`
+- The virtual environment is created automatically in `.venv/`
+- Activate (optional): `source .venv/bin/activate`
+- Or run commands directly with: `uv run <command>`
 
 ## Testing
 

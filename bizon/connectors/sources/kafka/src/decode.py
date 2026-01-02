@@ -1,6 +1,6 @@
 import io
 import struct
-from functools import lru_cache
+from functools import cache
 from typing import Tuple, Union
 
 import fastavro
@@ -20,7 +20,7 @@ class Hashabledict(dict):
         return hash(frozenset(self.items()))
 
 
-@lru_cache(maxsize=None)
+@cache
 def parse_global_id_from_serialized_message(message: bytes) -> Tuple[int, int]:
     """
     Parse the global id from the serialized message.
