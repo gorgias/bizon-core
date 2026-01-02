@@ -159,17 +159,15 @@ class BizonConfig(BaseModel):
             raise ValueError(f"Duplicate table_ids found in streams configuration: {set(duplicates)}")
 
         # Validate that source sync_mode is 'stream' if streams config is used
-        if hasattr(info, "data") and info.data:
-            source_config = info.data.get("source")
-            if source_config and hasattr(source_config, "sync_mode"):
-                if source_config.sync_mode != SourceSyncModes.STREAM:
-                    raise ValueError(
-                        f"Configuration Error: 'streams' configuration requires source.sync_mode='stream'. "
-                        f"Current sync_mode: {source_config.sync_mode}. "
-                        f"Please update your config to use:\n"
-                        f"  source:\n"
-                        f"    sync_mode: stream"
-                    )
+        source_config = info.data.get("source") if info.data else None
+        if source_config and source_config.sync_mode != SourceSyncModes.STREAM:
+            raise ValueError(
+                f"Configuration Error: 'streams' configuration requires source.sync_mode='stream'. "
+                f"Current sync_mode: {source_config.sync_mode}. "
+                f"Please update your config to use:\n"
+                f"  source:\n"
+                f"    sync_mode: stream"
+            )
 
         return v
 
