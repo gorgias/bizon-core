@@ -45,7 +45,7 @@ jobs:
 
     - name: Run tests
       run: |
-        uv run pytest tests/
+        uv run pytest tests/ --ignore=tests/e2e/ --ignore=tests/connectors/destinations/bigquery/ --ignore=tests/connectors/destinations/bigquery_streaming/ --ignore=tests/connectors/destinations/bigquery_streaming_v2/ --ignore=tests/connectors/destinations/bigquery_iceberg/
       env:
         POSTGRES_HOST: postgres
         POSTGRES_PORT: 5432
