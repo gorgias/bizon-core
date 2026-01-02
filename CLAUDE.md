@@ -88,38 +88,56 @@ Required methods:
 - `get(pagination)` - Fetch records (returns `SourceIteration`)
 - `get_records_after()` - For incremental sync support (optional)
 
+### Claude Skills
+
+Use these skills for common workflows:
+
+| Skill | Description |
+|-------|-------------|
+| `/new-source` | Scaffold a new source connector |
+| `/new-destination` | Scaffold a new destination connector |
+| `/run-checks` | Run format, lint, and tests |
+
 ### AI-Assisted Connector Generation
 
-When asked to create a new source connector from API documentation:
+**Source connectors** - Read these guides:
+- `docs/ai-connector-guide.md` - Templates, decision trees, extraction checklists
+- `docs/reference-connector.md` - Fully annotated production example
 
-1. **Read the guide first**: `docs/ai-connector-guide.md` contains:
-   - Extraction checklists (what to find in API docs)
-   - Decision trees (auth type, pagination pattern)
-   - Code templates with placeholders
-   - Example config file templates
-   - Validation checklist
+**Destination connectors** - Read:
+- `docs/ai-destination-guide.md` - Templates with placeholders, registration steps
 
-2. **Reference implementation**: `docs/reference-connector.md` provides:
-   - Fully annotated production-ready connector
-   - Line-by-line explanations
-   - Common patterns for pagination, auth, error handling
+**Workflow for sources**:
+```
+API Docs URL → Extract info → Generate code → Validate
+```
+Sources are auto-discovered - no registration needed!
 
-3. **Workflow**:
-   ```
-   API Docs URL → Extract info (Step 1) → Generate code (Step 2) →
-   Generate config (Step 5) → Validate (Step 4)
-   ```
+**Workflow for destinations**:
+```
+Generate code → Register in 3 places → Validate
+```
+Must register in: `DestinationTypes` enum, `BizonConfig.destination` Union, `DestinationFactory`
 
-4. **Files to create**:
-   ```
-   bizon/connectors/sources/{source_name}/
-   ├── config/
-   │   └── {source_name}.example.yml
-   └── src/
-       ├── __init__.py
-       ├── config.py
-       └── source.py
-   ```
+**Files to create for sources**:
+```
+bizon/connectors/sources/{source_name}/
+├── config/
+│   └── {source_name}.example.yml
+└── src/
+    ├── __init__.py
+    ├── config.py
+    └── source.py
+```
+
+**Files to create for destinations**:
+```
+bizon/connectors/destinations/{dest_name}/
+└── src/
+    ├── __init__.py
+    ├── config.py
+    └── destination.py
+```
 
 ### Adding New Destinations
 
