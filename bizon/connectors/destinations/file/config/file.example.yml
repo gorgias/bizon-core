@@ -1,0 +1,40 @@
+# File Destination Configuration
+# Writes records to a local JSON file (NDJSON format)
+#
+# Use this destination when:
+# - Exporting data for local analysis
+# - Creating data backups
+# - Debugging or inspecting extracted data
+# - Testing before loading to cloud destinations
+
+name: source_to_file
+
+source:
+  name: <YOUR_SOURCE>
+  stream: <YOUR_STREAM>
+  authentication:
+    type: api_key
+    params:
+      token: <YOUR_API_KEY>
+
+destination:
+  name: file
+  config:
+    # File path for output (relative or absolute)
+    # The destination_id will be used as the filename
+    destination_id: output.jsonl
+
+    # Output format (currently only json/ndjson supported)
+    format: json
+
+    # Buffer settings (optional)
+    # buffer_size: 50       # MB before flushing to file
+    # buffer_flush_timeout: 600  # Seconds before forcing flush
+
+# Optional: Use in-memory backend for testing
+engine:
+  backend:
+    type: sqlite_in_memory
+    config:
+      database: not_used
+      schema: not_used
