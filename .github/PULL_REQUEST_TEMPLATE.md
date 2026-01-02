@@ -1,5 +1,3 @@
-<!-- Thank you for contributing to Bizon! https://getbizon.io -->
-
 ## Summary
 <!-- Brief description of changes -->
 

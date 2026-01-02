@@ -1,6 +1,6 @@
 # AI Destination Generation Guide
 
-This guide enables AI agents to create production-ready [Bizon](https://getbizon.io) destination connectors.
+This guide enables AI agents to create production-ready Bizon destination connectors.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # Adding a New Source Connector
 
-Sources extract data from APIs and produce `SourceRecord` objects. [Bizon](https://getbizon.io) **auto-discovers** sources via AST parsing - no registration needed!
+Sources extract data from APIs and produce `SourceRecord` objects. Bizon **auto-discovers** sources via AST parsing - no registration needed!
 
 ## Directory Structure
 
