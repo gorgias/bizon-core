@@ -16,7 +16,6 @@ from bizon.engine.backend.config import BackendTypes
 
 
 def test_backend_factory_sqlite():
-
     config = SQLiteInMemoryConfig(
         type=BackendTypes.SQLITE_IN_MEMORY,
         config=SQLiteConfigDetails(
@@ -29,7 +28,6 @@ def test_backend_factory_sqlite():
 
 
 def test_backend_factory_postgres():
-
     config = PostgresSQLAlchemyConfig(
         type=BackendTypes.POSTGRES,
         config=PostgresConfigDetails(
@@ -48,11 +46,10 @@ def test_backend_factory_postgres():
 
 
 @pytest.mark.skipif(
-    os.getenv("POETRY_ENV_TEST") == "CI",
+    os.getenv("CI") is not None,
     reason="Skipping tests that require a BigQuery database",
 )
 def test_backend_factory_bigquery():
-
     config = BigQuerySQLAlchemyConfig(
         type=BackendTypes.BIGQUERY,
         config=BigQueryConfigDetails(

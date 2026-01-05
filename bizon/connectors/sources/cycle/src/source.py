@@ -60,9 +60,7 @@ class CycleSource(AbstractSource):
                 cursor: "PAGINATION_CURSOR"
                 direction: AFTER
             }
-            """.replace(
-                "PAGINATION_CURSOR", pagination.get("endCursor")
-            )
+            """.replace("PAGINATION_CURSOR", pagination.get("endCursor"))
 
         return pagination_str
 
@@ -99,9 +97,7 @@ class CycleSource(AbstractSource):
                 }
             }
         }
-        """.replace(
-            "PAGINATION_STRING", pagination_str
-        )
+        """.replace("PAGINATION_STRING", pagination_str)
 
         variables = {"slug": self.config.slug}
 

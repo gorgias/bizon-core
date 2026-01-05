@@ -4,7 +4,6 @@ from bizon.source.config import SourceConfig
 
 
 def test_source_config():
-
     config = """
     source:
         name: dummy

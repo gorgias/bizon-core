@@ -27,7 +27,6 @@ from bizon.transform.transform import Transform
 
 class AbstractRunner(ABC):
     def __init__(self, config: dict):
-
         # Internal state
         self._is_running: bool = False
 
@@ -222,7 +221,6 @@ class AbstractRunner(ABC):
         stop_event: Union[multiprocessing.synchronize.Event, threading.Event],
         **kwargs,
     ):
-
         # Get the source instance
         source = AbstractRunner.get_source(bizon_config=bizon_config, config=config)
 

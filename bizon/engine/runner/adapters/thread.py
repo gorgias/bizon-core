@@ -16,7 +16,6 @@ class ThreadRunner(AbstractRunner):
 
     # TODO: refacto this
     def get_kwargs(self):
-
         extra_kwargs = {}
 
         if self.bizon_config.engine.queue.type == "python_queue":
@@ -46,7 +45,6 @@ class ThreadRunner(AbstractRunner):
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.bizon_config.engine.runner.config.max_workers
         ) as executor:
-
             future_producer = executor.submit(
                 AbstractRunner.instanciate_and_run_producer,
                 self.bizon_config,

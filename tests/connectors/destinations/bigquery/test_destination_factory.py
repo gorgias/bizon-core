@@ -11,7 +11,6 @@ from bizon.connectors.destinations.bigquery.src.config import (
 from bizon.connectors.destinations.bigquery.src.destination import BigQueryDestination
 from bizon.destination.config import DestinationTypes
 from bizon.destination.destination import DestinationFactory
-from bizon.monitoring.monitor import MonitorFactory
 from bizon.monitoring.noop.monitor import NoOpMonitor
 
 

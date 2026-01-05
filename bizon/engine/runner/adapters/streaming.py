@@ -9,11 +9,13 @@ from loguru import logger
 from pytz import UTC
 
 from bizon.common.models import BizonConfig, SyncMetadata
+from bizon.connectors.destinations.bigquery.src.config import BigQueryRecordSchemaConfig
 from bizon.destination.models import transform_to_df_destination_records
 from bizon.engine.pipeline.models import PipelineReturnStatus
 from bizon.engine.runner.config import RunnerStatus
 from bizon.engine.runner.runner import AbstractRunner
 from bizon.source.models import SourceRecord, source_record_schema
+from bizon.source.source import AbstractSource
 
 
 class StreamingRunner(AbstractRunner):
@@ -36,7 +38,60 @@ class StreamingRunner(AbstractRunner):
     def convert_to_destination_records(df_source_records: pl.DataFrame, extracted_at: datetime) -> pl.DataFrame:
         return transform_to_df_destination_records(df_source_records=df_source_records, extracted_at=extracted_at)
 
+    def _apply_streams_config(self, source: AbstractSource = None) -> None:
+        """Apply streams configuration to source and destination.
+
+        This method is completely source-agnostic. Each source connector is responsible
+        for handling streams config appropriately via set_streams_config().
+
+        When a top-level 'streams' configuration is present, this method:
+        1. Calls source.set_streams_config() to let the source enrich its own config
+        2. Builds destination record_schemas from streams config
+        3. Injects record_schemas into destination config for backward compatibility
+
+        The source is responsible for modifying self.config (which points to bizon_config.source)
+        so that subsequent source instantiations see the enriched config.
+        """
+        if not self.bizon_config.streams:
+            return
+
+        logger.info(f"Applying streams configuration: {len(self.bizon_config.streams)} streams defined")
+
+        # Let the source enrich its own config from streams
+        # Note: source modifies self.config, which is a reference to bizon_config.source
+        # This ensures init_job (which creates a new source) sees the enriched config
+        if source and hasattr(source, "set_streams_config") and callable(source.set_streams_config):
+            source.set_streams_config(self.bizon_config.streams)
+
+        # Build record_schemas list for destination from streams config
+        record_schemas = []
+        for stream in self.bizon_config.streams:
+            if stream.destination.record_schema:
+                record_schema_config = BigQueryRecordSchemaConfig(
+                    destination_id=stream.destination.table_id,
+                    record_schema=stream.destination.record_schema,
+                    clustering_keys=stream.destination.clustering_keys,
+                )
+                record_schemas.append(record_schema_config)
+                logger.info(
+                    f"Stream '{stream.name}': "
+                    f"{getattr(stream.source, 'topic', getattr(stream.source, 'name', 'N/A'))} "
+                    f"-> {stream.destination.table_id}"
+                )
+
+        # Inject into destination config
+        if record_schemas and hasattr(self.bizon_config.destination.config, "record_schemas"):
+            logger.info(f"Injecting {len(record_schemas)} record schemas into destination config")
+            self.bizon_config.destination.config.record_schemas = record_schemas
+
     def run(self) -> RunnerStatus:
+        # Create a temporary source to enrich bizon_config.source from streams
+        # The source's set_streams_config() modifies self.config (= bizon_config.source)
+        # This ensures subsequent source instantiations see the enriched config
+        temp_source = self.get_source(bizon_config=self.bizon_config, config=self.config)
+        self._apply_streams_config(temp_source)
+
+        # Now initialize job (check_connection will use enriched source config)
         job = self.init_job(bizon_config=self.bizon_config, config=self.config)
         backend = self.get_backend(bizon_config=self.bizon_config)
         source = self.get_source(bizon_config=self.bizon_config, config=self.config)
@@ -58,7 +113,6 @@ class StreamingRunner(AbstractRunner):
         iteration = 0
 
         while True:
-
             if source.config.max_iterations and iteration > source.config.max_iterations:
                 logger.info(f"Max iterations {source.config.max_iterations} reached, terminating stream ...")
                 break

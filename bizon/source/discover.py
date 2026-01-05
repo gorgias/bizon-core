@@ -4,7 +4,8 @@ import importlib.util
 import inspect
 import os
 import traceback
-from typing import Any, List, Mapping, Type
+from collections.abc import Mapping
+from typing import Any, List, Type
 
 from loguru import logger
 from pydantic import BaseModel
@@ -36,7 +37,7 @@ class SourceModel(BaseModel):
 
 def find_inherited_classes(file_path):
     # Open the file and parse its content using ast
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         tree = ast.parse(file.read())
 
     # List to store classes that inherit from the given class name
@@ -79,7 +80,6 @@ def find_all_source_paths(source_dir_name: str = "src") -> Mapping[str, str]:
     base_dir = os.path.join(BIZON_ABSOLUTE_PATH, "connectors", "sources")
 
     for source_name in os.listdir(base_dir):
-
         # First check that it's a dir and contains a dir called src
         if os.path.isdir(os.path.join(base_dir, source_name)) and os.path.exists(
             os.path.join(base_dir, source_name, source_dir_name)
@@ -131,7 +131,6 @@ def is_source_class_implementing_incremental(source_class: Type[AbstractSource])
 
 
 def parse_streams_from_filepath(source_name: str, filepath: str, skip_unavailable_sources: bool) -> List[Stream]:
-
     streams = []
 
     # Find all classes that inherit from AbstractSource
@@ -141,7 +140,6 @@ def parse_streams_from_filepath(source_name: str, filepath: str, skip_unavailabl
 
     # If classes are found
     for source_class_name in source_classes_name:
-
         # Transform the relative path to a python import path and import the module
         python_import_path = get_python_import_path(relative_path)
         logger.debug(f"Importing {python_import_path}")
@@ -246,7 +244,6 @@ def get_external_source_class_by_source_and_stream(
     stream_names = []
 
     for class_name in class_names:
-
         # Extract the module name from the file (remove directory and extension)
         module_name = os.path.splitext(os.path.basename(filepath))[0]
 

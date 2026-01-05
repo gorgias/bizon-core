@@ -20,7 +20,6 @@ def test_config():
 
 
 def test_config_no_record_schema_provided():
-
     with pytest.raises(ValidationError) as e:
         AbstractDestinationConfig(
             name="file",

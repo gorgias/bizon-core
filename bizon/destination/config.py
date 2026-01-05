@@ -28,7 +28,6 @@ class RecordSchemaConfig(BaseModel):
 
 
 class AbstractDestinationDetailsConfig(BaseModel):
-
     # Forbid extra keys in the model
     model_config = ConfigDict(extra="forbid")
 

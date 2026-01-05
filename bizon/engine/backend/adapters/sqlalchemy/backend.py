@@ -5,7 +5,7 @@ from typing import Optional, Union
 from loguru import logger
 from pytz import UTC
 from sqlalchemy import Result, Select, create_engine, func, inspect, select, update
-from sqlalchemy.engine import Engine, create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from bizon.engine.backend.backend import AbstractBackend
@@ -26,7 +26,6 @@ from .config import BigQueryConfigDetails, PostgresConfigDetails, SQLiteConfigDe
 
 
 class SQLAlchemyBackend(AbstractBackend):
-
     def __init__(self, config: Union[PostgresConfigDetails, SQLiteConfigDetails], type: BackendTypes, **kwargs):
         super().__init__(config, type)
 
@@ -81,7 +80,6 @@ class SQLAlchemyBackend(AbstractBackend):
         )
 
     def _get_engine(self) -> Engine:
-
         if self.type == BackendTypes.BIGQUERY:
             return self._get_engine_bigquery()
 
@@ -96,7 +94,7 @@ class SQLAlchemyBackend(AbstractBackend):
         # ONLY FOR UNIT TESTS: SQLite in memory
         if self.type == BackendTypes.SQLITE_IN_MEMORY:
             return create_engine(
-                f"sqlite:///:memory:",
+                "sqlite:///:memory:",
                 echo=self.config.echoEngine,
                 connect_args={"check_same_thread": False},
             )
@@ -388,7 +386,6 @@ class SQLAlchemyBackend(AbstractBackend):
         pagination: Optional[dict] = None,
         session: Session | None = None,
     ) -> DestinationCursor:
-
         destination_cursor = DestinationCursor(
             name=name,
             source_name=source_name,

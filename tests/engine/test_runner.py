@@ -9,7 +9,6 @@ from bizon.engine.backend.models import JobStatus
 from bizon.engine.engine import RunnerFactory, replace_env_variables_in_config
 from bizon.engine.pipeline.producer import Producer
 from bizon.engine.runner.adapters.thread import ThreadRunner
-from bizon.engine.runner.runner import AbstractRunner
 
 
 def test_load_from_config():
@@ -89,7 +88,6 @@ def test_create_job(my_runner: ThreadRunner, sqlite_db_session):
 
 
 def test_create_job_and_recover(my_runner: ThreadRunner, sqlite_db_session):
-
     source = my_runner.get_source(bizon_config=my_runner.bizon_config, config=my_runner.config)
 
     job = my_runner.get_or_create_job(

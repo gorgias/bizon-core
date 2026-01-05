@@ -23,7 +23,6 @@ class PokeAPISourceConfig(SourceConfig):
 
 
 class PeriscopeSource(AbstractSource):
-
     def __init__(self, config: PokeAPISourceConfig):
         super().__init__(config)
         self.config: PokeAPISourceConfig = config

@@ -43,7 +43,6 @@ from .config import BigQueryStreamingConfigDetails
 
 
 class BigQueryStreamingDestination(AbstractDestination):
-
     # Add constants for limits
     MAX_REQUEST_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB (max is 10MB)
     MAX_ROW_SIZE_BYTES = 0.9 * 1024 * 1024  # 1 MB
@@ -78,7 +77,6 @@ class BigQueryStreamingDestination(AbstractDestination):
         return self.destination_id or f"{self.project_id}.{self.dataset_id}.{tabled_id}"
 
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
-
         if self.config.unnest:
             if len(list(self.record_schemas.keys())) == 1:
                 self.destination_id = list(self.record_schemas.keys())[0]
@@ -169,7 +167,6 @@ class BigQueryStreamingDestination(AbstractDestination):
         Safe cast record values to the correct type for BigQuery.
         """
         for col in self.record_schemas[self.destination_id]:
-
             # Handle dicts as strings
             if col.type in [BigQueryColumnType.STRING, BigQueryColumnType.JSON]:
                 if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
@@ -355,7 +352,9 @@ class BigQueryStreamingDestination(AbstractDestination):
                 len(current_batch) >= self.bq_max_rows_per_request
                 or current_batch_size + item_size > self.MAX_REQUEST_SIZE_BYTES
             ):
-                logger.debug(f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB")
+                logger.debug(
+                    f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size / 1024 / 1024:.2f}MB"
+                )
                 yield {"stream_batch": current_batch, "json_batch": large_rows}
                 current_batch = []
                 current_batch_size = 0
@@ -371,7 +370,7 @@ class BigQueryStreamingDestination(AbstractDestination):
         # Yield the last batch
         if current_batch:
             logger.debug(
-                f"Yielding streaming batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB"
+                f"Yielding streaming batch of {len(current_batch)} rows, size: {current_batch_size / 1024 / 1024:.2f}MB"
             )
             logger.debug(f"Yielding large rows batch of {len(large_rows)} rows")
             yield {"stream_batch": current_batch, "json_batch": large_rows}

@@ -7,9 +7,7 @@ from bizon.engine.pipeline.models import PipelineReturnStatus
 
 
 def test_e2e_pipeline_should_stop():
-
     with tempfile.NamedTemporaryFile(delete=False) as temp:
-
         BIZON_CONFIG_DUMMY_TO_FILE = f"""
         name: test_job_3
 

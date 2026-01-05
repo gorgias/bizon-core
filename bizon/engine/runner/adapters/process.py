@@ -8,7 +8,6 @@ from bizon.engine.runner.runner import AbstractRunner
 
 
 class ProcessRunner(AbstractRunner):
-
     def __init__(self, config: dict):
         super().__init__(config)
 
@@ -36,7 +35,6 @@ class ProcessRunner(AbstractRunner):
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.bizon_config.engine.runner.config.max_workers
         ) as executor:
-
             future_producer = executor.submit(
                 AbstractRunner.instanciate_and_run_producer,
                 self.bizon_config,

@@ -44,7 +44,6 @@ class DestinationIteration(BaseModel):
 
 
 class AbstractDestination(ABC):
-
     def __init__(
         self,
         sync_metadata: SyncMetadata,
@@ -144,7 +143,6 @@ class AbstractDestination(ABC):
 
         # Last iteration, write all records to destination
         if last_iteration:
-
             if self.buffer.df_destination_records.height == 0 and self.buffer.is_empty:
                 logger.info("No records to write to destination, already written, buffer is empty.")
                 return DestinationBufferStatus.RECORDS_WRITTEN
@@ -289,7 +287,6 @@ class DestinationFactory:
         source_callback: AbstractSourceCallback,
         monitor: AbstractMonitor,
     ) -> AbstractDestination:
-
         if config.name == DestinationTypes.LOGGER:
             from bizon.connectors.destinations.logger.src.destination import (
                 LoggerDestination,
@@ -355,4 +352,4 @@ class DestinationFactory:
                 monitor=monitor,
             )
 
-        raise ValueError(f"Destination {config.name}" f"with params {config} not found")
+        raise ValueError(f"Destination {config.name}with params {config} not found")

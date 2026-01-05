@@ -36,7 +36,6 @@ class AbstractQueueConsumer(ABC):
         pass
 
     def process_queue_message(self, queue_message: QueueMessage) -> PipelineReturnStatus:
-
         # Apply the transformation
         try:
             df_source_records = self.transform.apply_transforms(df_source_records=queue_message.df_source_records)

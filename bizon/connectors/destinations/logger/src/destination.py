@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Tuple
 
 import polars as pl
 from loguru import logger
@@ -13,7 +13,6 @@ from .config import LoggerDestinationConfig
 
 
 class LoggerDestination(AbstractDestination):
-
     def __init__(
         self,
         sync_metadata: SyncMetadata,

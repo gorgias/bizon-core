@@ -55,7 +55,6 @@ engine:
 
 @pytest.fixture(scope="function")
 def file_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
-
     my_sqlite_backend.create_all_tables()
 
     job = my_sqlite_backend.create_stream_job(
@@ -113,7 +112,6 @@ df_destination_records = pl.DataFrame(
 
 
 def test_e2e_dummy_to_file_recovery(file_destination, my_sqlite_backend, sqlite_db_session):
-
     N_ITERATION = 2
     CURSOR = str(uuid4())
 

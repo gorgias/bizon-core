@@ -18,7 +18,6 @@ df_source_records = pl.DataFrame(
 
 
 def test_destination_record_from_source_record():
-
     destination_source_records = transform_to_df_destination_records(
         df_source_records=df_source_records,
         extracted_at=datetime(2024, 12, 5, 12, 0),

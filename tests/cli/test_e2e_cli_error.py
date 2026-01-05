@@ -4,7 +4,7 @@ from click.testing import CliRunner
 
 from bizon.cli.main import cli
 
-BIZON_CONFIG_DUMMY_TO_FILE = f"""
+BIZON_CONFIG_DUMMY_TO_FILE = """
 name: test_job_3
 
 source:
@@ -32,7 +32,6 @@ transforms:
 
 
 def test_e2e_run_command_dummy_to_file():
-
     runner = CliRunner()
 
     with tempfile.NamedTemporaryFile(delete=False) as temp:

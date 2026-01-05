@@ -1,8 +1,5 @@
 from queue import Queue
 
-import pytest
-
-from bizon.common.models import SyncMetadata
 from bizon.engine.queue.adapters.kafka.config import (
     KafkaConfig,
     KafkaConfigDetails,
@@ -29,7 +26,6 @@ from bizon.engine.queue.queue import QueueFactory
 
 
 def test_queue_factory():
-
     config = PythonQueueConfig(
         type=QueueTypes.PYTHON_QUEUE,
         config=PythonQueueConfigDetails(
@@ -45,7 +41,6 @@ def test_queue_factory():
 
 
 def test_queue_factory_kafka():
-
     config = KafkaConfig(
         type=QueueTypes.KAFKA,
         config=KafkaConfigDetails(
@@ -67,7 +62,6 @@ def test_queue_factory_kafka():
 
 
 def test_queue_rabbitmq():
-
     config = RabbitMQConfig(
         type=QueueTypes.RABBITMQ,
         config=RabbitMQConfigDetails(

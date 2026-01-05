@@ -1,4 +1,5 @@
-from typing import Any, List, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any, List, Optional, Union
 
 import pendulum
 from pydantic import BaseModel, Field
