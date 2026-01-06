@@ -38,11 +38,9 @@ BIZON_CONFIG_DUMMY_TO_FILE = f"""
 
 
 def test_e2e_run_command_dummy_to_file():
-
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-
         with open("config.yml", "w") as file:
             file.write(BIZON_CONFIG_DUMMY_TO_FILE)
 

@@ -13,7 +13,6 @@ from .consumer import KafkaConsumer_
 
 
 class KafkaQueue(AbstractQueue):
-
     def __init__(self, config: KafkaConfigDetails) -> None:
         super().__init__(config)
         self.config: KafkaConfigDetails = config

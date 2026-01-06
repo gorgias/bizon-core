@@ -22,8 +22,34 @@ Extract and load your largest data streams with a framework you can trust for bi
     - `pyarrow` for Parquet file format
 
 ## Installation
+
+### For Users
 ```bash
 pip install bizon
+
+# With optional dependencies
+pip install bizon[postgres]    # PostgreSQL backend
+pip install bizon[kafka]       # Kafka queue
+pip install bizon[bigquery]    # BigQuery backend/destination
+pip install bizon[rabbitmq]    # RabbitMQ queue
+```
+
+### For Development
+```bash
+# Install uv (if not already installed)
+pip install uv
+
+# Clone and install
+git clone https://github.com/bizon-data/bizon-core.git
+cd bizon-core
+uv sync --all-extras --all-groups
+
+# Run tests
+uv run pytest tests/
+
+# Format code
+uv run ruff format .
+uv run ruff check --fix .
 ```
 
 ## Usage

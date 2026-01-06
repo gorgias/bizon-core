@@ -27,7 +27,7 @@ class BasicHttpAuthenticator(AbstractHeaderAuthenticator):
         return f"{self._auth_method} {self._token}"
 
     def __init__(self, params: BasicHttpAuthParams):
-        auth_string = f"{params.username}:{params.password}".encode("utf8")
+        auth_string = f"{params.username}:{params.password}".encode()
         b64_encoded = base64.b64encode(auth_string).decode("utf8")
         self._auth_header = params.auth_header
         self._auth_method = params.auth_method

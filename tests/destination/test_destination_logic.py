@@ -16,7 +16,6 @@ from bizon.source.callback import NoOpSourceCallback
 
 @pytest.fixture(scope="function")
 def logger_destination(my_sqlite_backend: SQLAlchemyBackend, sqlite_db_session):
-
     my_sqlite_backend.create_all_tables()
 
     job = my_sqlite_backend.create_stream_job(
@@ -72,7 +71,6 @@ def test_buffer_records(logger_destination: LoggerDestination):
 
 
 def test_write_or_buffer_records_too_large(logger_destination: LoggerDestination):
-
     df_big_size = pl.DataFrame(schema=destination_record_schema)
 
     for _ in range(100):
@@ -101,7 +99,6 @@ def test_write_or_buffer_records_too_large(logger_destination: LoggerDestination
 
 
 def test_write_last_iteration(logger_destination: LoggerDestination, sqlite_db_session):
-
     buffer_status = logger_destination.write_or_buffer_records(
         df_destination_records=df_destination_records,
         iteration=0,
@@ -132,7 +129,6 @@ def test_write_last_iteration(logger_destination: LoggerDestination, sqlite_db_s
 
 
 def test_no_records_written(logger_destination: LoggerDestination, sqlite_db_session):
-
     buffer_status = logger_destination.write_or_buffer_records(
         df_destination_records=pl.DataFrame(schema=destination_record_schema),
         iteration=0,

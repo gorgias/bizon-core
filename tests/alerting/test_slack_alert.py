@@ -85,9 +85,7 @@ def test_slack_log_handler(dummy_webhook_server, webhook_url):
 
 
 def test_e2e_logger_to_file(dummy_webhook_server, webhook_url):
-
     with tempfile.NamedTemporaryFile(delete=False) as temp:
-
         BIZON_CONFIG_DUMMY_TO_FILE = f"""
         name: test_job_9
 

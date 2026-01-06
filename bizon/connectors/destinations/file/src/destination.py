@@ -13,7 +13,6 @@ from .config import FileDestinationDetailsConfig
 
 
 class FileDestination(AbstractDestination):
-
     def __init__(
         self,
         sync_metadata: SyncMetadata,
@@ -32,15 +31,11 @@ class FileDestination(AbstractDestination):
         return True
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:
-
         if self.config.unnest:
-
             schema_keys = set([column.name for column in self.record_schemas[self.destination_id]])
 
             with open(f"{self.destination_id}.json", "a") as f:
-
                 for value in [orjson.loads(data) for data in df_destination_records["source_data"].to_list()]:
-
                     assert set(value.keys()) == schema_keys, "Keys do not match the schema"
 
                     # Unnest the source_data column

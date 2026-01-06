@@ -1,10 +1,9 @@
-import sys
 from io import StringIO
 from unittest.mock import Mock, patch
 
 import orjson
 import pytest
-from confluent_kafka import KafkaError, Message
+from confluent_kafka import Message
 from loguru import logger
 
 from bizon.connectors.sources.kafka.src.config import (

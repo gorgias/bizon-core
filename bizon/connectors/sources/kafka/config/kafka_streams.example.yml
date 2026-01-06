@@ -1,0 +1,124 @@
+# Example: Kafka source with streams configuration
+# This demonstrates the unified streams config that consolidates
+# topic-to-destination mapping with schema definitions.
+
+name: kafka_streams_example
+
+source:
+  name: kafka
+  stream: topic
+  sync_mode: stream
+  # No topics needed - they are automatically extracted from streams config
+  nb_bytes_schema_id: 4
+  timestamp_ms_name: ts_ms
+  batch_size: 100
+  consumer_timeout: 30
+  bootstrap_servers: your-kafka-broker:9092
+  group_id: your-consumer-group
+  authentication:
+    type: basic
+    schema_registry_url: https://your-schema-registry:8081
+    params:
+      username: your-kafka-username
+      password: your-kafka-password
+
+destination:
+  name: bigquery_streaming_v2
+  config:
+    dataset_id: your_dataset
+    dataset_location: US
+    project_id: your-gcp-project
+    unnest: true
+    time_partitioning:
+      type: DAY
+      field: __inserted_at
+
+# Streams configuration - consolidates topic -> table -> schema mapping
+# Each stream defines:
+#   - source: where to read from (topic for Kafka)
+#   - destination: where to write (table_id + schema)
+streams:
+  - name: "users"
+    source:
+      topic: "cdc.public.users"
+    destination:
+      table_id: "your-gcp-project.your_dataset.users"
+      clustering_keys:
+        - "id"
+      record_schema:
+        - name: "id"
+          type: "INTEGER"
+          mode: "REQUIRED"
+        - name: "email"
+          type: "STRING"
+          mode: "NULLABLE"
+        - name: "payload"
+          type: "JSON"
+          mode: "NULLABLE"
+        - name: "__operation"
+          type: "STRING"
+          mode: "NULLABLE"
+        - name: "__deleted"
+          type: "BOOLEAN"
+          mode: "NULLABLE"
+        - name: "__kafka_partition"
+          type: "INTEGER"
+          mode: "NULLABLE"
+        - name: "__kafka_offset"
+          type: "INTEGER"
+          mode: "NULLABLE"
+        - name: "__kafka_topic"
+          type: "STRING"
+          mode: "NULLABLE"
+        - name: "__event_timestamp"
+          type: "TIMESTAMP"
+          mode: "NULLABLE"
+        - name: "__inserted_at"
+          type: "TIMESTAMP"
+          mode: "NULLABLE"
+          default_value_expression: "CURRENT_TIMESTAMP()"
+
+  - name: "orders"
+    source:
+      topic: "cdc.public.orders"
+    destination:
+      table_id: "your-gcp-project.your_dataset.orders"
+      clustering_keys:
+        - "id"
+        - "user_id"
+      record_schema:
+        - name: "id"
+          type: "INTEGER"
+          mode: "REQUIRED"
+        - name: "user_id"
+          type: "INTEGER"
+          mode: "REQUIRED"
+        - name: "payload"
+          type: "JSON"
+          mode: "NULLABLE"
+        - name: "__operation"
+          type: "STRING"
+          mode: "NULLABLE"
+        - name: "__deleted"
+          type: "BOOLEAN"
+          mode: "NULLABLE"
+        - name: "__kafka_partition"
+          type: "INTEGER"
+          mode: "NULLABLE"
+        - name: "__kafka_offset"
+          type: "INTEGER"
+          mode: "NULLABLE"
+        - name: "__kafka_topic"
+          type: "STRING"
+          mode: "NULLABLE"
+        - name: "__event_timestamp"
+          type: "TIMESTAMP"
+          mode: "NULLABLE"
+        - name: "__inserted_at"
+          type: "TIMESTAMP"
+          mode: "NULLABLE"
+          default_value_expression: "CURRENT_TIMESTAMP()"
+
+engine:
+  runner:
+    type: stream  # Required when using streams config

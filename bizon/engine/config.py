@@ -23,7 +23,6 @@ from .runner.config import RunnerConfig, RunnerFuturesConfig, RunnerTypes
 
 
 class EngineConfig(BaseModel):
-
     # Forbid extra keys in the model
     model_config = ConfigDict(extra="forbid")
 

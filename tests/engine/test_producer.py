@@ -5,7 +5,6 @@ from queue import Queue
 
 import pytest
 
-from bizon.engine.backend.adapters.sqlalchemy.backend import SQLAlchemyBackend
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.engine.backend.models import JobStatus, StreamJob
 from bizon.engine.engine import RunnerFactory
@@ -48,7 +47,6 @@ def test_cursor_recovery_after_iteration(my_producer: Producer, sqlite_db_sessio
 
 
 def test_cursor_recovery_not_running(my_producer: Producer, sqlite_db_session, my_job: StreamJob):
-
     cursor = my_producer.get_or_create_cursor(job_id=my_job.id, session=sqlite_db_session)
     assert cursor is not None
 
@@ -62,7 +60,6 @@ def test_source_thread(my_producer: Producer):
 
 
 def test_queue_is_full(my_producer: Producer, sqlite_db_session, my_job: StreamJob):
-
     assert my_producer.queue.config.max_nb_messages == 1_000_000
 
     my_producer.queue.connect()

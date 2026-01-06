@@ -47,7 +47,6 @@ from .proto_utils import get_proto_schema_and_class
 
 
 class BigQueryStreamingV2Destination(AbstractDestination):
-
     # Add constants for limits
     MAX_REQUEST_SIZE_BYTES = 9.5 * 1024 * 1024  # 9.5 MB (max is 10MB)
     MAX_ROW_SIZE_BYTES = 8 * 1024 * 1024  # 8 MB (max is 10MB)
@@ -95,7 +94,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         return f"{self.table_id}"
 
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
-
         if self.config.unnest:
             if len(list(self.record_schemas.keys())) == 1:
                 self.destination_id = list(self.record_schemas.keys())[0]
@@ -184,7 +182,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         Safe cast record values to the correct type for BigQuery.
         """
         for col in self.record_schemas[self.destination_id]:
-
             # Handle dicts as strings
             if col.type in ["STRING", "JSON"]:
                 if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
@@ -307,7 +304,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             raise
 
     def load_to_bigquery_via_streaming(self, df_destination_records: pl.DataFrame) -> str:
-
         # Create table if it does not exist (use temp_table_id for staging)
         schema = self.get_bigquery_schema()
         table = bigquery.Table(self.temp_table_id, schema=schema)
@@ -436,7 +432,9 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                 len(current_batch) >= self.bq_max_rows_per_request
                 or current_batch_size + item_size > self.MAX_REQUEST_SIZE_BYTES
             ):
-                logger.debug(f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB")
+                logger.debug(
+                    f"Yielding batch of {len(current_batch)} rows, size: {current_batch_size / 1024 / 1024:.2f}MB"
+                )
                 yield {"stream_batch": current_batch, "json_batch": large_rows}
                 current_batch = []
                 current_batch_size = 0
@@ -452,7 +450,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         # Yield the last batch
         if current_batch:
             logger.info(
-                f"Yielding streaming batch of {len(current_batch)} rows, size: {current_batch_size/1024/1024:.2f}MB"
+                f"Yielding streaming batch of {len(current_batch)} rows, size: {current_batch_size / 1024 / 1024:.2f}MB"
             )
             if large_rows:
                 logger.warning(f"Yielding large rows batch of {len(large_rows)} rows")

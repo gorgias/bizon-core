@@ -9,7 +9,6 @@ from bizon.engine.backend.models import JobStatus
 
 class Cursor:
     def __init__(self, source_name: str, stream_name: str, job_id: str, total_records: int = None):
-
         self.source_name: str = source_name
         self.stream_name: str = stream_name
         self._job_id: str = job_id
@@ -79,7 +78,6 @@ class Cursor:
         return f"{self.source_name}.{self.stream_name}"
 
     def update_state(self, pagination_dict: dict, nb_records_fetched: int):
-
         # - 1. update the pagination
         self._pagination = pagination_dict
 
@@ -93,10 +91,8 @@ class Cursor:
         percentage_str = f"({self.percentage_fetched:.3%})" if self.percentage_fetched else ""
 
         logger.info(
-            (
-                f"Source: {self.source_full_name} - Iteration {self.iteration} - "
-                f"Fetched: {self.rows_fetched} {percentage_str} successfully."
-            )
+            f"Source: {self.source_full_name} - Iteration {self.iteration} - "
+            f"Fetched: {self.rows_fetched} {percentage_str} successfully."
         )
 
         # - 5 Handle next status depending on the pagination
@@ -107,19 +103,15 @@ class Cursor:
 
             if self.total_records is not None and self.rows_fetched != self.total_records:
                 logger.info(
-                    (
-                        f"Source: {self.source_full_name} - Iteration {self.iteration} - "
-                        f"Total records fetched: {self.rows_fetched} "
-                        f"does not match the total records available: {self.total_records}"
-                    )
+                    f"Source: {self.source_full_name} - Iteration {self.iteration} - "
+                    f"Total records fetched: {self.rows_fetched} "
+                    f"does not match the total records available: {self.total_records}"
                 )
             else:
                 logger.info(
-                    (
-                        f"Source: {self.source_full_name} - Iteration {self.iteration} - "
-                        f"Total records fetched: {self.rows_fetched} "
-                        f"matches the total records available: {self.total_records}"
-                    )
+                    f"Source: {self.source_full_name} - Iteration {self.iteration} - "
+                    f"Total records fetched: {self.rows_fetched} "
+                    f"matches the total records available: {self.total_records}"
                 )
             return
 

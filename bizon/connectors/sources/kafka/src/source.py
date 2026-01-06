@@ -1,7 +1,8 @@
 import traceback
+from collections.abc import Mapping
 from datetime import datetime
-from functools import lru_cache
-from typing import Any, List, Mapping, Tuple
+from functools import cache
+from typing import Any, List, Tuple
 
 import orjson
 from avro.schema import Schema, parse
@@ -69,11 +70,14 @@ def on_error(err: KafkaError):
 
 
 class KafkaSource(AbstractSource):
-
     def __init__(self, config: KafkaSourceConfig):
         super().__init__(config)
 
         self.config: KafkaSourceConfig = config
+
+        # Ensure topics is always a list (not None)
+        if self.config.topics is None:
+            self.config.topics = []
 
         # Kafka consumer configuration.
         if self.config.authentication.type == AuthType.BASIC:
@@ -94,6 +98,49 @@ class KafkaSource(AbstractSource):
         # Map topic_name to destination_id
         self.topic_map = {topic.name: topic.destination_id for topic in self.config.topics}
 
+    def set_streams_config(self, streams: list) -> None:
+        """Configure Kafka topics from streams config.
+
+        This method enriches self.config.topics from the streams configuration,
+        ensuring that subsequent source instantiations (e.g., in init_job) have
+        access to the topics without duplication in the YAML config.
+
+        When a top-level 'streams' configuration is present, this method:
+        1. Extracts Kafka topics from streams (topic field)
+        2. Builds TopicConfig objects with destination_id from streams
+        3. Populates self.config.topics if empty (modifies bizon_config.source in-place)
+        4. Updates topic_map for record routing
+
+        Args:
+            streams: List of StreamConfig objects from BizonConfig.streams
+        """
+        from .config import TopicConfig
+
+        # Extract topics from streams
+        topics_from_streams = []
+        streams_map = {}
+
+        for stream in streams:
+            if hasattr(stream.source, "topic") and stream.source.topic:
+                topic_name = stream.source.topic
+                streams_map[topic_name] = stream
+
+                # Build TopicConfig from stream
+                topic_config = TopicConfig(name=topic_name, destination_id=stream.destination.table_id)
+                topics_from_streams.append(topic_config)
+
+        # Populate self.config.topics from streams (modifies bizon_config.source in-place)
+        # This ensures check_connection() and subsequent source instantiations have topics
+        if not self.config.topics and topics_from_streams:
+            self.config.topics = topics_from_streams
+            logger.info(f"Kafka: Populated {len(topics_from_streams)} topics from streams config")
+            for topic_config in topics_from_streams:
+                logger.info(f"  - Topic: {topic_config.name} -> {topic_config.destination_id}")
+
+        # Update topic_map with destination table_ids from streams
+        for topic, stream_config in streams_map.items():
+            self.topic_map[topic] = stream_config.destination.table_id
+
     @staticmethod
     def streams() -> List[str]:
         return ["topic"]
@@ -113,6 +160,15 @@ class KafkaSource(AbstractSource):
 
     def check_connection(self) -> Tuple[bool | Any | None]:
         """Check the connection to the Kafka source"""
+
+        # Validate that topics have been configured
+        if not self.config.topics:
+            error_msg = (
+                "No topics configured. Either provide topics in source config or use streams configuration. "
+                "If using streams config, ensure set_streams_config() is called before check_connection()."
+            )
+            logger.error(error_msg)
+            return False, error_msg
 
         try:
             # Use a short timeout to avoid hanging on connection issues
@@ -173,7 +229,7 @@ class KafkaSource(AbstractSource):
             total_records += self.get_offset_partitions(topic).total_offset
         return total_records
 
-    @lru_cache(maxsize=None)
+    @cache
     def get_schema_from_registry(self, global_id: int) -> Tuple[Hashabledict, Schema]:
         """Get the schema from the registry, return a hashable dict and an avro schema object"""
 
@@ -220,10 +276,8 @@ class KafkaSource(AbstractSource):
             hashable_dict_schema, avro_schema = self.get_schema_from_registry(global_id=global_id)
         except SchemaNotFound as e:
             logger.error(
-                (
-                    f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {global_id} which is not found in Registry."
-                    f"message value: {message.value()}."
-                )
+                f"Message on topic {message.topic()} partition {message.partition()} at offset {message.offset()} has a  SchemaID of {global_id} which is not found in Registry."
+                f"message value: {message.value()}."
             )
             logger.error(traceback.format_exc())
             raise e
@@ -261,7 +315,6 @@ class KafkaSource(AbstractSource):
         records = []
 
         for message in encoded_messages:
-
             MESSAGE_LOG_METADATA = (
                 f"Message for topic {message.topic()} partition {message.partition()} and offset {message.offset()}"
             )
@@ -270,13 +323,11 @@ class KafkaSource(AbstractSource):
                 # If the message is too large, we skip it and update the offset
                 if message.error().code() == KafkaError.MSG_SIZE_TOO_LARGE:
                     logger.error(
-                        (
-                            f"{MESSAGE_LOG_METADATA} is too large. "
-                            "Raised MSG_SIZE_TOO_LARGE, if manually setting the offset, the message might not exist. Double-check in Confluent Cloud."
-                        )
+                        f"{MESSAGE_LOG_METADATA} is too large. "
+                        "Raised MSG_SIZE_TOO_LARGE, if manually setting the offset, the message might not exist. Double-check in Confluent Cloud."
                     )
 
-                logger.error((f"{MESSAGE_LOG_METADATA}: " f"{message.error()}"))
+                logger.error(f"{MESSAGE_LOG_METADATA}: {message.error()}")
                 raise KafkaException(message.error())
 
             # We skip tombstone messages
@@ -304,7 +355,6 @@ class KafkaSource(AbstractSource):
 
             # Decode the message
             try:
-
                 decoded_message, hashable_dict_schema = self.decode(message)
 
                 data = {
@@ -331,10 +381,8 @@ class KafkaSource(AbstractSource):
 
             except Exception as e:
                 logger.error(
-                    (
-                        f"{MESSAGE_LOG_METADATA}: Error while decoding message: {e} "
-                        f"with value: {message.value()} and key: {message.key()}"
-                    )
+                    f"{MESSAGE_LOG_METADATA}: Error while decoding message: {e} "
+                    f"with value: {message.value()} and key: {message.key()}"
                 )
 
                 # Try to parse error message from the message value

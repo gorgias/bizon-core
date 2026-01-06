@@ -2,7 +2,7 @@ import io
 import json
 import os
 import struct
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import fastavro
 import pytest
@@ -20,10 +20,10 @@ def test_data():
     # Load test data
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
-    with open(os.path.join(current_dir, "schema.json"), "r") as f:
+    with open(os.path.join(current_dir, "schema.json")) as f:
         schema_dict = json.load(f)
 
-    with open(os.path.join(current_dir, "data.json"), "r") as f:
+    with open(os.path.join(current_dir, "data.json")) as f:
         data = json.load(f)
 
     # Create a hashable dictionary from the schema

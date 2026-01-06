@@ -1,7 +1,6 @@
 import os
 import tempfile
 
-import pytest
 from click.testing import CliRunner
 
 from bizon.cli.main import cli

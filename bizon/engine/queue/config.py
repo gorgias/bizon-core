@@ -27,7 +27,6 @@ class QueueTypes(str, Enum):
 
 
 class AbastractQueueConfigDetails(BaseModel, ABC):
-
     # Forbid extra keys in the model
     model_config = ConfigDict(extra="forbid")
 
@@ -38,7 +37,6 @@ class AbastractQueueConfigDetails(BaseModel, ABC):
 
 
 class AbstractQueueConfig(BaseModel, ABC):
-
     # Forbid extra keys in the model
     model_config = ConfigDict(extra="forbid")
 

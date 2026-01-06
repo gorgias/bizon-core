@@ -8,7 +8,6 @@ from .auth.config import AuthConfig
 
 
 class SourceSyncModes(str, Enum):
-
     # Full refresh
     # - creates a new StreamJob
     # - start syncing data from scratch till pagination is empty
@@ -30,7 +29,6 @@ class APIConfig(BaseModel):
 
 
 class SourceConfig(BaseModel, ABC):
-
     # Connector identifier to use, match a unique connector code
     name: str = Field(..., description="Name of the source to sync")
     stream: str = Field(..., description="Name of the stream to sync")

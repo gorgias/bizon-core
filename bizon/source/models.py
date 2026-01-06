@@ -18,7 +18,6 @@ source_record_schema = pl.Schema(
 
 ### /!\ These models Source* will be used in all sources so we better never have to change them !!!
 class SourceRecord(BaseModel):
-
     id: str = Field(..., description="Unique identifier of the record in the source")
 
     data: dict = Field(..., description="JSON payload of the record")
