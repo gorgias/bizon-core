@@ -1,0 +1,21 @@
+name: dummy to logger (incremental)
+
+source:
+  name: dummy
+  stream: creatures
+  sync_mode: incremental
+  cursor_field: updated_at  # Field to filter records by timestamp
+  authentication:
+    type: api_key
+    params:
+      token: dummy_key
+
+destination:
+  name: logger
+  config:
+    dummy: dummy
+
+# How incremental sync works:
+# 1. First run: Behaves like full_refresh (fetches all data)
+# 2. Subsequent runs: Only fetches records where cursor_field > last_run
+# 3. Logger outputs records with [incremental] prefix for easy identification

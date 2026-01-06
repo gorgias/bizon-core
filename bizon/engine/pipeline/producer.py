@@ -14,7 +14,9 @@ from bizon.common.models import BizonConfig
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.engine.backend.models import CursorStatus
 from bizon.engine.queue.queue import AbstractQueue
+from bizon.source.config import SourceSyncModes
 from bizon.source.cursor import Cursor
+from bizon.source.models import SourceIncrementalState
 from bizon.source.source import AbstractSource
 
 from .models import PipelineReturnStatus
@@ -130,6 +132,37 @@ class Producer:
             self.queue.terminate(iteration=0)
             return PipelineReturnStatus.BACKEND_ERROR
 
+        # Handle incremental sync mode
+        source_incremental_state = None
+        is_incremental = self.bizon_config.source.sync_mode == SourceSyncModes.INCREMENTAL
+
+        if is_incremental:
+            # Get the last successful job to determine last_run timestamp
+            last_successful_job = self.backend.get_last_successful_stream_job(
+                name=self.bizon_config.name,
+                source_name=self.bizon_config.source.name,
+                stream_name=self.bizon_config.source.stream,
+            )
+
+            if last_successful_job:
+                # Create incremental state with last_run from previous job
+                source_incremental_state = SourceIncrementalState(
+                    last_run=last_successful_job.created_at,
+                    state={},
+                    cursor_field=self.bizon_config.source.cursor_field,
+                )
+                logger.info(
+                    f"Incremental sync: fetching records after {source_incremental_state.last_run} "
+                    f"using cursor_field: {source_incremental_state.cursor_field}"
+                )
+            else:
+                # First incremental run - fall back to full refresh behavior
+                logger.info(
+                    "Incremental sync: No previous successful job found. "
+                    "Falling back to full refresh behavior for first run."
+                )
+                is_incremental = False
+
         while not cursor.is_finished:
             if stop_event.is_set():
                 logger.info("Stop event is set, terminating producer ...")
@@ -180,7 +213,15 @@ class Producer:
 
             # Get the next data
             try:
-                source_iteration = self.source.get(pagination=cursor.pagination)
+                if is_incremental and source_incremental_state:
+                    # Use incremental fetching with get_records_after
+                    source_iteration = self.source.get_records_after(
+                        source_state=source_incremental_state,
+                        pagination=cursor.pagination,
+                    )
+                else:
+                    # Use standard fetching with get
+                    source_iteration = self.source.get(pagination=cursor.pagination)
             except Exception as e:
                 logger.error(traceback.format_exc())
                 logger.error(

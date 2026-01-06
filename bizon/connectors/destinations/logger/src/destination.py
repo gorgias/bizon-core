@@ -8,6 +8,7 @@ from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.callback import AbstractSourceCallback
+from bizon.source.config import SourceSyncModes
 
 from .config import LoggerDestinationConfig
 
@@ -36,6 +37,17 @@ class LoggerDestination(AbstractDestination):
         return True
 
     def write_records(self, df_destination_records: pl.DataFrame) -> Tuple[bool, str]:
+        sync_mode_label = f"[{self.sync_metadata.sync_mode}]" if self.sync_metadata.sync_mode else ""
         for record in df_destination_records.iter_rows(named=True):
-            logger.info(record["source_data"])
+            logger.info(f"{sync_mode_label} {record['source_data']}")
         return True, ""
+
+    def finalize(self) -> bool:
+        """Finalize the sync - logs completion message based on sync mode."""
+        if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH.value:
+            logger.info("Logger destination: FULL_REFRESH sync completed")
+        elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL.value:
+            logger.info("Logger destination: INCREMENTAL sync completed (records appended)")
+        elif self.sync_metadata.sync_mode == SourceSyncModes.STREAM.value:
+            logger.info("Logger destination: STREAM sync batch completed")
+        return True

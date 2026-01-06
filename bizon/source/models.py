@@ -44,4 +44,5 @@ class SourceIteration(BaseModel):
 
 class SourceIncrementalState(BaseModel):
     last_run: datetime = Field(..., description="Timestamp of the last successful run")
-    state: dict = Field(..., description="Incremental state information from the latest sync")
+    state: dict = Field(default_factory=dict, description="Incremental state information from the latest sync")
+    cursor_field: Optional[str] = Field(default=None, description="The field name to filter records by timestamp")

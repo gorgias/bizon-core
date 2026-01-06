@@ -40,6 +40,7 @@ from bizon.destination.destination import AbstractDestination
 from bizon.engine.backend.backend import AbstractBackend
 from bizon.monitoring.monitor import AbstractMonitor
 from bizon.source.callback import AbstractSourceCallback
+from bizon.source.config import SourceSyncModes
 
 from .config import BigQueryStreamingV2ConfigDetails
 from .proto_utils import get_proto_schema_and_class
@@ -80,6 +81,17 @@ class BigQueryStreamingV2Destination(AbstractDestination):
     def table_id(self) -> str:
         tabled_id = f"{self.sync_metadata.source_name}_{self.sync_metadata.stream_name}"
         return self.destination_id or f"{self.project_id}.{self.dataset_id}.{tabled_id}"
+
+    @property
+    def temp_table_id(self) -> str:
+        if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH:
+            return f"{self.table_id}_temp"
+        elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL:
+            return f"{self.table_id}_incremental"
+        elif self.sync_metadata.sync_mode == SourceSyncModes.STREAM:
+            return f"{self.table_id}"
+        # Default fallback
+        return f"{self.table_id}"
 
     def get_bigquery_schema(self) -> List[bigquery.SchemaField]:
         if self.config.unnest:
@@ -263,14 +275,14 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                     deserialized_row = self.from_protobuf_serialization(table_row_class, serialized_row)
                     deserialized_rows.append(deserialized_row)
 
-                # For large rows, we need to use the main client
+                # For large rows, we need to use the main client (write to temp_table_id)
                 job_config = bigquery.LoadJobConfig(
                     source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-                    schema=self.bq_client.get_table(self.table_id).schema,
+                    schema=self.bq_client.get_table(self.temp_table_id).schema,
                     ignore_unknown_values=True,
                 )
                 load_job = self.bq_client.load_table_from_json(
-                    deserialized_rows, self.table_id, job_config=job_config, timeout=300
+                    deserialized_rows, self.temp_table_id, job_config=job_config, timeout=300
                 )
                 result = load_job.result()
                 if load_job.state != "DONE":
@@ -292,9 +304,9 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             raise
 
     def load_to_bigquery_via_streaming(self, df_destination_records: pl.DataFrame) -> str:
-        # Create table if it does not exist
+        # Create table if it does not exist (use temp_table_id for staging)
         schema = self.get_bigquery_schema()
-        table = bigquery.Table(self.table_id, schema=schema)
+        table = bigquery.Table(self.temp_table_id, schema=schema)
         time_partitioning = TimePartitioning(
             field=self.config.time_partitioning.field, type_=self.config.time_partitioning.type
         )
@@ -305,7 +317,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
         try:
             table = self.bq_client.create_table(table)
         except Conflict:
-            table = self.bq_client.get_table(self.table_id)
+            table = self.bq_client.get_table(self.temp_table_id)
             # Compare and update schema if needed
             existing_fields = {field.name: field for field in table.schema}
             new_fields = {field.name: field for field in self.get_bigquery_schema()}
@@ -319,12 +331,13 @@ class BigQueryStreamingV2Destination(AbstractDestination):
                 table.schema = updated_schema
                 table = self.bq_client.update_table(table, ["schema"])
 
-        # Create the stream
-        if self.destination_id:
-            project, dataset, table_name = self.destination_id.split(".")
+        # Create the stream (use temp_table_id for staging)
+        temp_table_parts = self.temp_table_id.split(".")
+        if len(temp_table_parts) == 3:
+            project, dataset, table_name = temp_table_parts
             parent = BigQueryWriteClient.table_path(project, dataset, table_name)
         else:
-            parent = BigQueryWriteClient.table_path(self.project_id, self.dataset_id, self.destination_id)
+            parent = BigQueryWriteClient.table_path(self.project_id, self.dataset_id, temp_table_parts[-1])
 
         stream_name = f"{parent}/_default"
 
@@ -442,3 +455,29 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             if large_rows:
                 logger.warning(f"Yielding large rows batch of {len(large_rows)} rows")
             yield {"stream_batch": current_batch, "json_batch": large_rows}
+
+    def finalize(self):
+        """Finalize the sync by moving data from temp table to main table based on sync mode."""
+        if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH:
+            # Replace main table with temp table data
+            logger.info(f"Loading temp table {self.temp_table_id} data into {self.table_id} ...")
+            self.bq_client.query(
+                f"CREATE OR REPLACE TABLE {self.table_id} AS SELECT * FROM {self.temp_table_id}"
+            ).result()
+            logger.info(f"Deleting temp table {self.temp_table_id} ...")
+            self.bq_client.delete_table(self.temp_table_id, not_found_ok=True)
+            return True
+
+        elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL:
+            # Append data from incremental temp table to main table
+            logger.info(f"Appending data from {self.temp_table_id} to {self.table_id} ...")
+            self.bq_client.query(f"INSERT INTO {self.table_id} SELECT * FROM {self.temp_table_id}").result()
+            logger.info(f"Deleting incremental temp table {self.temp_table_id} ...")
+            self.bq_client.delete_table(self.temp_table_id, not_found_ok=True)
+            return True
+
+        elif self.sync_metadata.sync_mode == SourceSyncModes.STREAM:
+            # Direct writes, no finalization needed
+            return True
+
+        return True
