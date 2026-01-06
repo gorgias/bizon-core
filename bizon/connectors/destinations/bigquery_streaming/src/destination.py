@@ -1,6 +1,5 @@
 import os
 import tempfile
-from datetime import datetime
 from typing import List, Tuple
 
 import orjson
@@ -162,39 +161,6 @@ class BigQueryStreamingDestination(AbstractDestination):
         response = write_client.append_rows(iter([request]))
         return response.code().name
 
-    def safe_cast_record_values(self, row: dict):
-        """
-        Safe cast record values to the correct type for BigQuery.
-        """
-        for col in self.record_schemas[self.destination_id]:
-            # Handle dicts as strings
-            if col.type in [BigQueryColumnType.STRING, BigQueryColumnType.JSON]:
-                if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
-                    row[col.name] = orjson.dumps(row[col.name]).decode("utf-8")
-
-            # Handle timestamps
-            if (
-                col.type in [BigQueryColumnType.TIMESTAMP, BigQueryColumnType.DATETIME]
-                and col.default_value_expression is None
-            ):
-                if isinstance(row[col.name], int):
-                    if row[col.name] > datetime(9999, 12, 31).timestamp():
-                        row[col.name] = datetime.fromtimestamp(row[col.name] / 1_000_000).strftime(
-                            "%Y-%m-%d %H:%M:%S.%f"
-                        )
-                    else:
-                        try:
-                            row[col.name] = datetime.fromtimestamp(row[col.name]).strftime("%Y-%m-%d %H:%M:%S.%f")
-                        except ValueError:
-                            error_message = (
-                                f"Error casting timestamp for destination '{self.destination_id}' column '{col.name}'. "
-                                f"Invalid timestamp value: {row[col.name]} ({type(row[col.name])}). "
-                                "Consider using a transformation."
-                            )
-                            logger.error(error_message)
-                            raise ValueError(error_message)
-        return row
-
     @retry(
         retry=retry_if_exception_type(
             (
@@ -281,10 +247,7 @@ class BigQueryStreamingDestination(AbstractDestination):
 
         if self.config.unnest:
             # We cannot use the `json_decode` method here because of the issue: https://github.com/pola-rs/polars/issues/22371
-            rows_to_insert = [
-                self.safe_cast_record_values(orjson.loads(row))
-                for row in df_destination_records["source_data"].to_list()
-            ]
+            rows_to_insert = [orjson.loads(row) for row in df_destination_records["source_data"].to_list()]
         else:
             df_destination_records = df_destination_records.with_columns(
                 pl.col("bizon_extracted_at").dt.strftime("%Y-%m-%d %H:%M:%S").alias("bizon_extracted_at"),

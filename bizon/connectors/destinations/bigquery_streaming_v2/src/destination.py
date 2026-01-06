@@ -1,7 +1,6 @@
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from typing import List, Tuple, Type
 
 import orjson
@@ -177,36 +176,6 @@ class BigQueryStreamingV2Destination(AbstractDestination):
             logger.error(f"Stream name: {stream_name}")
             raise
 
-    def safe_cast_record_values(self, row: dict):
-        """
-        Safe cast record values to the correct type for BigQuery.
-        """
-        for col in self.record_schemas[self.destination_id]:
-            # Handle dicts as strings
-            if col.type in ["STRING", "JSON"]:
-                if isinstance(row[col.name], dict) or isinstance(row[col.name], list):
-                    row[col.name] = orjson.dumps(row[col.name]).decode("utf-8")
-
-            # Handle timestamps
-            if col.type in ["TIMESTAMP", "DATETIME"] and col.default_value_expression is None:
-                if isinstance(row[col.name], int):
-                    if row[col.name] > datetime(9999, 12, 31).timestamp():
-                        row[col.name] = datetime.fromtimestamp(row[col.name] / 1_000_000).strftime(
-                            "%Y-%m-%d %H:%M:%S.%f"
-                        )
-                    else:
-                        try:
-                            row[col.name] = datetime.fromtimestamp(row[col.name]).strftime("%Y-%m-%d %H:%M:%S.%f")
-                        except ValueError:
-                            error_message = (
-                                f"Error casting timestamp for destination '{self.destination_id}' column '{col.name}'. "
-                                f"Invalid timestamp value: {row[col.name]} ({type(row[col.name])}). "
-                                "Consider using a transformation."
-                            )
-                            logger.error(error_message)
-                            raise ValueError(error_message)
-        return row
-
     @staticmethod
     def to_protobuf_serialization(TableRowClass: Type[Message], row: dict) -> bytes:
         """Convert a row to a Protobuf serialization."""
@@ -346,9 +315,7 @@ class BigQueryStreamingV2Destination(AbstractDestination):
 
         if self.config.unnest:
             serialized_rows = [
-                self.to_protobuf_serialization(
-                    TableRowClass=TableRow, row=self.safe_cast_record_values(orjson.loads(row))
-                )
+                self.to_protobuf_serialization(TableRowClass=TableRow, row=orjson.loads(row))
                 for row in df_destination_records["source_data"].to_list()
             ]
         else:
