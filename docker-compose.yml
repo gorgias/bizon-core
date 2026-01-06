@@ -1,0 +1,18 @@
+# Docker Compose for local testing
+# Usage: docker compose up -d
+# Then run: uv run pytest tests/
+services:
+  db:
+    image: postgres:14
+    ports:
+      - 5432:5432
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bizon
+      POSTGRES_DB: bizon_test
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "bizon_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
