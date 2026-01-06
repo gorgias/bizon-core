@@ -29,6 +29,43 @@ uv run bizon source list        # List available sources
 uv run bizon stream list <source>  # List streams for a source
 ```
 
+## Releasing
+
+Releases are automated via GitHub Actions on tag push:
+
+1. **Update CHANGELOG.md** - Add entry under `[Unreleased]` following [Keep a Changelog](https://keepachangelog.com/) format
+2. **Bump version** in `pyproject.toml`
+3. **Move changelog entries** from `[Unreleased]` to new version section with date
+4. **Create and push tag**:
+   ```bash
+   git tag v0.X.Y
+   git push origin v0.X.Y
+   ```
+
+This triggers `.github/workflows/publish.yml` which:
+- Builds and publishes to PyPI
+- Creates GitHub Release with changelog excerpt
+
+### Changelog Format
+
+```markdown
+## [Unreleased]
+
+## [0.X.Y] - YYYY-MM-DD
+
+### Added
+- New features
+
+### Changed
+- Changes to existing functionality
+
+### Fixed
+- Bug fixes
+
+### Removed
+- Removed features
+```
+
 ## Code Style
 
 - Ruff formatter with line length 120
