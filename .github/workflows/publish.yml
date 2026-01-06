@@ -30,3 +30,24 @@ jobs:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
           uv publish
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          # Extract version from tag (remove 'v' prefix)
+          VERSION=${GITHUB_REF_NAME#v}
+          # Extract changelog section for this version
+          awk "/^## \[${VERSION}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
+          # If no specific section found, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release ${VERSION}" > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
