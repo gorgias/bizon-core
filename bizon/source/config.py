@@ -44,6 +44,12 @@ class SourceConfig(BaseModel, ABC):
         default=SourceSyncModes.FULL_REFRESH,
     )
 
+    cursor_field: Optional[str] = Field(
+        default=None,
+        description="Field name to use for incremental filtering (e.g., 'updated_at', 'modified_at'). "
+        "Source will fetch records where this field > last_run timestamp.",
+    )
+
     force_ignore_checkpoint: bool = Field(
         description="Whether to force recreate the sync from iteration 0. Existing checkpoints will be ignored.",
         default=False,

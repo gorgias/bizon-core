@@ -81,6 +81,38 @@ Runner is the interface used by Bizon to run the pipeline. It can be configured 
 - `process` (asynchronous)
 - `stream` (synchronous)
 
+## Sync Modes
+
+Bizon supports three sync modes:
+- `full_refresh`: Re-syncs all data from scratch on each run
+- `incremental`: Syncs only new/updated data since the last successful run
+- `stream`: Continuous streaming mode for real-time data (e.g., Kafka)
+
+### Incremental Sync
+
+To use incremental sync, set the `sync_mode` and `cursor_field` in your source configuration:
+
+```yaml
+source:
+  name: your_source
+  stream: your_stream
+  sync_mode: incremental
+  cursor_field: updated_at  # The timestamp field to filter records by
+```
+
+**How it works:**
+1. First run: Behaves like full_refresh (fetches all data)
+2. Subsequent runs: Only fetches records where `cursor_field > last_run`
+3. Uses append-only strategy - new records are appended to existing data
+
+**Configuration:**
+- `sync_mode: incremental` - Enable incremental sync
+- `cursor_field` - The timestamp field in your data to filter by (e.g., `updated_at`, `modified_at`, `timestamp`)
+
+**Requirements:**
+- Source must implement `get_records_after()` method
+- Supported destinations: BigQuery (batch), BigQuery Streaming V2
+
 ## Start syncing your data 🚀
 
 ### Quick setup without any dependencies ✌️

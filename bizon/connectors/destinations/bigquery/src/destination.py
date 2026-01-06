@@ -207,7 +207,11 @@ class BigQueryDestination(AbstractDestination):
             return True
 
         elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL:
-            # TO DO: Implement incremental sync
+            # Append data from incremental temp table to main table
+            logger.info(f"Appending data from {self.temp_table_id} to {self.table_id} ...")
+            self.bq_client.query(f"INSERT INTO {self.table_id} SELECT * FROM {self.temp_table_id}").result()
+            logger.info(f"Deleting incremental temp table {self.temp_table_id} ...")
+            self.bq_client.delete_table(self.temp_table_id, not_found_ok=True)
             return True
 
         elif self.sync_metadata.sync_mode == SourceSyncModes.STREAM:
