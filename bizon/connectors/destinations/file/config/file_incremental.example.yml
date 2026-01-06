@@ -1,0 +1,22 @@
+name: dummy to file (incremental)
+
+source:
+  name: dummy
+  stream: creatures
+  sync_mode: incremental
+  cursor_field: updated_at  # Field to filter records by timestamp
+  authentication:
+    type: api_key
+    params:
+      token: dummy_key
+
+destination:
+  name: file
+  config:
+    format: json
+
+# How incremental sync works with file destination:
+# 1. First run: Behaves like full_refresh (creates new file)
+# 2. Subsequent runs: Only fetches records where cursor_field > last_run
+# 3. New records are appended to the existing JSON file
+# 4. Writes to temp file (_incremental.json) then appends to main file on finalize

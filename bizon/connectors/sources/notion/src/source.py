@@ -10,7 +10,7 @@ from urllib3.util.retry import Retry
 from bizon.source.auth.builder import AuthBuilder
 from bizon.source.auth.config import AuthType
 from bizon.source.config import SourceConfig
-from bizon.source.models import SourceIteration, SourceRecord
+from bizon.source.models import SourceIncrementalState, SourceIteration, SourceRecord
 from bizon.source.source import AbstractSource
 
 from .config import NotionSourceConfig, NotionStreams
@@ -1131,6 +1131,348 @@ class NotionSource(AbstractSource):
         next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
 
         return SourceIteration(records=records, next_pagination=next_pagination)
+
+    # ==================== INCREMENTAL SYNC ====================
+
+    def search_with_filter(
+        self, start_cursor: str = None, last_edited_after: str = None, object_type: str = None
+    ) -> dict:
+        """
+        Search with optional last_edited_time filter for incremental sync.
+
+        Note: Notion Search API doesn't support timestamp filtering directly.
+        We sort by last_edited_time descending and filter client-side.
+
+        Args:
+            start_cursor: Pagination cursor
+            last_edited_after: ISO 8601 timestamp to filter by last_edited_time
+            object_type: Optional filter by object type ("page" or "database")
+
+        Returns:
+            Search results filtered by timestamp
+        """
+        payload = {"page_size": self.config.page_size}
+        if start_cursor:
+            payload["start_cursor"] = start_cursor
+
+        # Sort by last_edited_time descending to get most recent first
+        if last_edited_after:
+            payload["sort"] = {"direction": "descending", "timestamp": "last_edited_time"}
+
+        response = self.session.post(f"{BASE_URL}/search", json=payload)
+        response.raise_for_status()
+        result = response.json()
+
+        # Filter by object_type client-side if specified
+        if object_type:
+            result["results"] = [item for item in result.get("results", []) if item.get("object") == object_type]
+
+        # Filter by last_edited_time client-side
+        # Since results are sorted descending, stop when we hit an old item
+        if last_edited_after:
+            filtered_results = []
+            found_old_item = False
+            for item in result.get("results", []):
+                item_edited_time = item.get("last_edited_time", "")
+                if item_edited_time > last_edited_after:
+                    filtered_results.append(item)
+                else:
+                    found_old_item = True
+                    break
+
+            result["results"] = filtered_results
+            # If we found an old item, no need to paginate further
+            if found_old_item:
+                result["has_more"] = False
+
+        return result
+
+    def get_pages_after(self, source_state: SourceIncrementalState, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch pages updated after source_state.last_run using the Search API with timestamp filter.
+        """
+        cursor = pagination.get("start_cursor") if pagination else None
+        last_edited_after = source_state.last_run.isoformat()
+
+        result = self.search_with_filter(start_cursor=cursor, last_edited_after=last_edited_after, object_type="page")
+
+        records = [SourceRecord(id=page["id"], data=page) for page in result.get("results", [])]
+
+        logger.info(f"Incremental sync: fetched {len(records)} pages updated after {last_edited_after}")
+
+        next_pagination = {"start_cursor": result.get("next_cursor")} if result.get("has_more") else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_all_pages_after(self, source_state: SourceIncrementalState, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch all pages accessible to the integration updated after source_state.last_run.
+        Same as get_pages_after but without database_ids filter.
+        """
+        return self.get_pages_after(source_state, pagination)
+
+    def get_databases_after(self, source_state: SourceIncrementalState, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch databases updated after source_state.last_run.
+        """
+        cursor = pagination.get("start_cursor") if pagination else None
+        last_edited_after = source_state.last_run.isoformat()
+
+        # Search for data_sources (databases don't appear directly in search in 2025-09-03 API)
+        result = self.search_with_filter(
+            start_cursor=cursor, last_edited_after=last_edited_after, object_type="data_source"
+        )
+
+        # Extract unique database IDs from data_sources
+        seen_db_ids = set()
+        records = []
+        for ds in result.get("results", []):
+            parent = ds.get("parent", {})
+            if parent.get("type") == "database_id":
+                db_id = parent.get("database_id")
+                if db_id and db_id not in seen_db_ids:
+                    seen_db_ids.add(db_id)
+                    try:
+                        db_data = self.get_database(db_id)
+                        records.append(SourceRecord(id=db_data["id"], data=db_data))
+                    except Exception as e:
+                        logger.error(f"Failed to fetch database {db_id}: {e}")
+
+        logger.info(f"Incremental sync: fetched {len(records)} databases updated after {last_edited_after}")
+
+        next_pagination = {"start_cursor": result.get("next_cursor")} if result.get("has_more") else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_blocks_after(self, source_state: SourceIncrementalState, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch blocks from pages updated after source_state.last_run.
+        First finds updated pages, then fetches their blocks.
+        """
+        if pagination:
+            items_to_process = pagination.get("items_to_process", [])
+            items_loaded = pagination.get("items_loaded", False)
+            search_cursor = pagination.get("search_cursor")
+        else:
+            items_to_process = []
+            items_loaded = False
+            search_cursor = None
+
+        last_edited_after = source_state.last_run.isoformat()
+
+        # Collect pages updated after last_run
+        if not items_loaded:
+            while True:
+                result = self.search_with_filter(
+                    start_cursor=search_cursor, last_edited_after=last_edited_after, object_type="page"
+                )
+                for page in result.get("results", []):
+                    items_to_process.append(
+                        {
+                            "block_id": page["id"],
+                            "input_db_id": None,
+                            "input_page_id": None,
+                            "source_page_id": page["id"],
+                        }
+                    )
+
+                if result.get("has_more"):
+                    search_cursor = result.get("next_cursor")
+                else:
+                    break
+
+            items_loaded = True
+            logger.info(f"Incremental sync: found {len(items_to_process)} pages updated after {last_edited_after}")
+
+        if not items_to_process:
+            return SourceIteration(records=[], next_pagination={})
+
+        # Process a batch in parallel
+        batch_size = self.config.max_workers
+        batch = items_to_process[:batch_size]
+        items_to_process = items_to_process[batch_size:]
+
+        records = []
+
+        def fetch_item_blocks(item_info: dict) -> List[dict]:
+            return self.fetch_blocks_recursively(
+                block_id=item_info["block_id"],
+                parent_input_database_id=item_info["input_db_id"],
+                parent_input_page_id=item_info["input_page_id"],
+                source_page_id=item_info["source_page_id"],
+            )
+
+        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+            futures = {executor.submit(fetch_item_blocks, item_info): item_info for item_info in batch}
+            for future in as_completed(futures):
+                item_info = futures[future]
+                try:
+                    blocks = future.result()
+                    for block in blocks:
+                        records.append(SourceRecord(id=block["id"], data=block))
+                except Exception as e:
+                    logger.error(f"Failed to fetch blocks from {item_info['block_id']}: {e}")
+
+        next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_blocks_markdown_after(
+        self, source_state: SourceIncrementalState, pagination: dict = None
+    ) -> SourceIteration:
+        """
+        Fetch blocks from pages updated after source_state.last_run and convert to markdown.
+        Respects database_ids and database_filters configuration.
+        """
+        if pagination:
+            items_to_process = pagination.get("items_to_process", [])
+            items_loaded = pagination.get("items_loaded", False)
+        else:
+            items_to_process = []
+            items_loaded = False
+
+        last_edited_after = source_state.last_run.isoformat()
+
+        # Collect pages updated after last_run from configured databases
+        if not items_loaded:
+            # Query each configured database with timestamp filter
+            for db_id in self.config.database_ids:
+                try:
+                    db_data = self.get_database(db_id)
+                    db_filter = self.get_filter_for_database(db_id)
+
+                    for ds in db_data.get("data_sources", []):
+                        ds_cursor = None
+                        while True:
+                            # Build filter with last_edited_time constraint
+                            incremental_filter = {
+                                "timestamp": "last_edited_time",
+                                "last_edited_time": {"after": last_edited_after},
+                            }
+                            # Combine with existing database filter if present
+                            if db_filter:
+                                combined_filter = {"and": [incremental_filter, db_filter]}
+                            else:
+                                combined_filter = incremental_filter
+
+                            result = self.query_data_source(ds["id"], ds_cursor, filter=combined_filter)
+                            for page in result.get("results", []):
+                                items_to_process.append(
+                                    {
+                                        "block_id": page["id"],
+                                        "input_db_id": db_id,
+                                        "input_page_id": None,
+                                        "source_page_id": page["id"],
+                                    }
+                                )
+
+                            if result.get("has_more"):
+                                ds_cursor = result.get("next_cursor")
+                            else:
+                                break
+                except Exception as e:
+                    logger.error(f"Failed to query database {db_id} for incremental sync: {e}")
+
+            # Also check configured page_ids (filter by last_edited_time)
+            for page_id in self.config.page_ids:
+                try:
+                    page_data = self.get_page(page_id)
+                    if page_data.get("last_edited_time", "") > last_edited_after:
+                        items_to_process.append(
+                            {
+                                "block_id": page_id,
+                                "input_db_id": None,
+                                "input_page_id": page_id,
+                                "source_page_id": page_id,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to fetch page {page_id} for incremental sync: {e}")
+
+            items_loaded = True
+            logger.info(
+                f"Incremental sync: found {len(items_to_process)} pages for blocks_markdown after {last_edited_after}"
+            )
+
+        if not items_to_process:
+            return SourceIteration(records=[], next_pagination={})
+
+        # Process a batch in parallel
+        batch_size = self.config.max_workers
+        batch = items_to_process[:batch_size]
+        items_to_process = items_to_process[batch_size:]
+
+        records = []
+
+        def fetch_and_convert_item(item_info: dict) -> List[dict]:
+            blocks = self.fetch_blocks_recursively(
+                block_id=item_info["block_id"],
+                parent_input_database_id=item_info["input_db_id"],
+                parent_input_page_id=item_info["input_page_id"],
+                source_page_id=item_info["source_page_id"],
+                fetch_child_databases=False,
+            )
+
+            block_records = []
+            for block in blocks or []:
+                if not block:
+                    continue
+                md = self._block_to_markdown(block)
+                block_records.append(
+                    {
+                        "block_id": block.get("id"),
+                        "block_type": block.get("type"),
+                        "markdown": md,
+                        "source_page_id": block.get("source_page_id"),
+                        "parent_block_id": block.get("parent_block_id"),
+                        "parent_input_database_id": block.get("parent_input_database_id"),
+                        "parent_input_page_id": block.get("parent_input_page_id"),
+                        "depth": block.get("depth"),
+                        "block_order": block.get("block_order"),
+                        "page_order": block.get("page_order"),
+                        "block_raw": block,
+                    }
+                )
+            return block_records
+
+        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+            futures = {executor.submit(fetch_and_convert_item, item_info): item_info for item_info in batch}
+            for future in as_completed(futures):
+                item_info = futures[future]
+                try:
+                    block_records = future.result()
+                    for block_record in block_records:
+                        records.append(SourceRecord(id=block_record.get("block_id"), data=block_record))
+                except Exception as e:
+                    logger.error(f"Failed to fetch/convert blocks from {item_info['block_id']}: {e}")
+
+        next_pagination = {"items_to_process": items_to_process, "items_loaded": True} if items_to_process else {}
+
+        return SourceIteration(records=records, next_pagination=next_pagination)
+
+    def get_records_after(self, source_state: SourceIncrementalState, pagination: dict = None) -> SourceIteration:
+        """
+        Fetch records updated after source_state.last_run for incremental sync.
+
+        Supported streams:
+        - pages, all_pages: Uses Search API with last_edited_time filter
+        - databases, all_databases: Uses Search API to find updated data_sources
+        - blocks, all_blocks_markdown: First finds updated pages, then fetches their blocks
+        """
+        stream = self.config.stream
+
+        if stream in [NotionStreams.PAGES, NotionStreams.ALL_PAGES]:
+            return self.get_pages_after(source_state, pagination)
+        elif stream in [NotionStreams.DATABASES, NotionStreams.ALL_DATABASES]:
+            return self.get_databases_after(source_state, pagination)
+        elif stream == NotionStreams.BLOCKS:
+            return self.get_blocks_after(source_state, pagination)
+        elif stream in [NotionStreams.BLOCKS_MARKDOWN, NotionStreams.ALL_BLOCKS_MARKDOWN]:
+            return self.get_blocks_markdown_after(source_state, pagination)
+        else:
+            # For streams that don't support incremental, fall back to full refresh
+            logger.warning(f"Stream {stream} does not support incremental sync, falling back to full refresh")
+            return self.get(pagination)
 
     # ==================== MAIN DISPATCH ====================
 

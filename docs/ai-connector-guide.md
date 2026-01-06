@@ -723,6 +723,188 @@ class ExampleSource(AbstractSource):
         return SourceIteration(records=records, next_pagination=next_pagination)
 ```
 
+## Step 6: Implement Incremental Sync Support
+
+To support incremental sync, implement `get_records_after()` method that filters records by timestamp.
+
+### 6.1 Determine API Timestamp Support
+
+Check if the API supports server-side timestamp filtering:
+
+| API Capability | Implementation Strategy |
+|----------------|------------------------|
+| Has `updated_after` / `modified_since` param | Server-side filtering (preferred) |
+| Has `sort_by=updated_at` option | Fetch sorted, stop at cutoff |
+| No timestamp support | Client-side filtering (less efficient) |
+
+### 6.2 Template: Server-Side Filtering (Preferred)
+
+```python
+from bizon.source.models import SourceIncrementalState, SourceIteration, SourceRecord
+
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """
+    Fetch records updated after source_state.last_run.
+
+    The producer calls this method when sync_mode=incremental and
+    a previous successful job exists.
+
+    Args:
+        source_state.last_run: datetime of previous job's created_at
+        source_state.cursor_field: field name from config (e.g., "updated_at")
+        pagination: pagination state for multi-page results
+    """
+    # Convert datetime to API format
+    last_run_iso = source_state.last_run.isoformat()
+
+    # Build params with timestamp filter
+    params = {
+        "{{TIMESTAMP_PARAM}}": last_run_iso,  # e.g., "updated_after", "modified_since"
+        "{{PAGE_SIZE_PARAM}}": self.config.page_size,
+    }
+
+    # Handle pagination
+    if pagination and pagination.get("{{CURSOR_KEY}}"):
+        params["{{CURSOR_PARAM}}"] = pagination["{{CURSOR_KEY}}"]
+
+    response = self.session.get(f"{BASE_URL}/{{STREAM_ENDPOINT}}", params=params)
+    response.raise_for_status()
+    data = response.json()
+
+    records = [
+        SourceRecord(id=r["{{RECORD_ID_FIELD}}"], data=r)
+        for r in data.get("{{RESULTS_KEY}}", [])
+    ]
+
+    # Same pagination pattern as get()
+    next_pagination = {"{{CURSOR_KEY}}": data["{{NEXT_CURSOR_KEY}}"]} if data.get("{{HAS_MORE_KEY}}") else {}
+
+    return SourceIteration(records=records, next_pagination=next_pagination)
+```
+
+### 6.3 Template: Client-Side Filtering (Fallback)
+
+When API doesn't support timestamp filtering:
+
+```python
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """Fetch all records, filter client-side by timestamp."""
+
+    # Use regular get() to fetch records
+    iteration = self.get(pagination)
+
+    # Filter records where timestamp > last_run
+    cursor_field = source_state.cursor_field or "{{DEFAULT_TIMESTAMP_FIELD}}"
+    last_run_iso = source_state.last_run.isoformat()
+
+    filtered_records = [
+        record for record in iteration.records
+        if record.data.get(cursor_field, "") > last_run_iso
+    ]
+
+    return SourceIteration(
+        records=filtered_records,
+        next_pagination=iteration.next_pagination,
+    )
+```
+
+### 6.4 Template: Multi-Stream Dispatch
+
+For sources with multiple streams:
+
+```python
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """Dispatch to stream-specific incremental method."""
+    stream = self.config.stream
+
+    if stream == {{SOURCE_NAME}}Streams.{{STREAM_1}}:
+        return self.get_{{stream_1}}_after(source_state, pagination)
+    elif stream == {{SOURCE_NAME}}Streams.{{STREAM_2}}:
+        return self.get_{{stream_2}}_after(source_state, pagination)
+    else:
+        # Fallback for streams without incremental support
+        logger.warning(f"Stream {stream} doesn't support incremental, using full refresh")
+        return self.get(pagination)
+
+def get_{{stream_1}}_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """Stream-specific incremental implementation."""
+    # Implement stream-specific logic here
+    pass
+```
+
+### 6.5 Template: Incremental Example Config
+
+```yaml
+# {{SOURCE_DISPLAY_NAME}} Incremental Sync Configuration
+#
+# Incremental sync only fetches records updated since the last successful run.
+# First run behaves like full_refresh, subsequent runs fetch only new/updated records.
+
+name: {{source_name}}_{{stream_name}}_incremental
+
+source:
+  name: {{source_name}}
+  stream: {{stream_name}}
+  sync_mode: incremental
+  cursor_field: {{CURSOR_FIELD}}  # e.g., updated_at, modified_at, last_edited_time
+  authentication:
+    type: api_key
+    params:
+      token: <YOUR_API_KEY>
+
+  # Source-specific options
+  page_size: {{DEFAULT_PAGE_SIZE}}
+
+destination:
+  name: bigquery
+  config:
+    project_id: <YOUR_GCP_PROJECT>
+    dataset_id: {{source_name}}_data
+    dataset_location: US
+
+engine:
+  backend:
+    type: bigquery
+    database: <YOUR_GCP_PROJECT>
+    schema: bizon_backend
+    syncCursorInDBEvery: 2
+```
+
+### 6.6 Incremental Sync Validation Checklist
+
+- [ ] `get_records_after()` method implemented
+- [ ] Handles `source_state.last_run` as datetime
+- [ ] Returns `SourceIteration` with records and pagination
+- [ ] Returns empty `next_pagination={}` when done
+- [ ] Logging added for debugging (`logger.info("Incremental sync: found X records after Y")`)
+- [ ] Example incremental config created
+- [ ] Tested with two consecutive runs (first = full, second = incremental)
+
+### 6.7 Common Incremental Patterns by API Type
+
+| API Style | Implementation | Example APIs |
+|-----------|---------------|--------------|
+| REST with `updated_after` | Server-side filter | HubSpot, Salesforce |
+| REST with sort only | Sort + client-side cutoff | Many REST APIs |
+| GraphQL | Add `updatedAt_gt` to query | Shopify, GitHub |
+| Search API | Client-side filter (inefficient) | Notion Search |
+| Database query | Add timestamp to filter | Notion Database Query |
+
+### 6.8 Reference Implementation
+
+See `bizon/connectors/sources/notion/src/source.py` for a complete example:
+- `get_pages_after()` - Search API with client-side filtering
+- `get_blocks_markdown_after()` - Database query with combined timestamp + user filters
+- `get_records_after()` - Main dispatch method
+
 ## Placeholders Reference
 
 When generating code, replace these placeholders:
@@ -750,3 +932,6 @@ When generating code, replace these placeholders:
 | `{{CUSTOM_HEADER}}` | Custom header name | `X-API-Version`, `Notion-Version` |
 | `{{HEADER_VALUE}}` | Custom header value | `2024-01-01` |
 | `{{auth_type}}` | Auth type in YAML | `api_key`, `bearer`, `oauth` |
+| `{{TIMESTAMP_PARAM}}` | API param for timestamp filter | `updated_after`, `modified_since` |
+| `{{CURSOR_FIELD}}` | Cursor field for incremental | `updated_at`, `last_edited_time` |
+| `{{DEFAULT_TIMESTAMP_FIELD}}` | Default timestamp field in data | `updated_at`, `modified_at` |

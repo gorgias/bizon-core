@@ -1,0 +1,48 @@
+name: notion pages incremental sync
+
+source:
+  name: notion
+  stream: pages  # Options: databases, data_sources, pages, blocks, users
+  sync_mode: incremental
+  cursor_field: last_edited_time  # Notion's timestamp field
+  authentication:
+    type: api_key
+    params:
+      token: secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Your Notion integration token
+
+  # List of database IDs to fetch data from
+  database_ids:
+    - "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+  # Number of results per API call (1-100, default: 100)
+  page_size: 100
+
+destination:
+  name: bigquery
+  config:
+    project_id: <MY_GCP_PROJECT>
+    dataset_id: notion_data
+    dataset_location: US
+    gcs_buffer_bucket: <MY_GCS_BUCKET>
+    gcs_buffer_format: parquet
+
+engine:
+  backend:
+    type: bigquery
+    database: <MY_GCP_PROJECT>
+    schema: bizon_backend
+    syncCursorInDBEvery: 2
+
+# Incremental sync for Notion:
+# - First run: Fetches all pages/databases (full refresh behavior)
+# - Subsequent runs: Only fetches items where last_edited_time > last_run
+#
+# Supported streams for incremental sync:
+# - pages, all_pages: Uses Search API with last_edited_time filter
+# - databases, all_databases: Uses Search API to find updated data_sources
+# - blocks: First finds updated pages, then fetches their blocks
+# - blocks_markdown, all_blocks_markdown: Same as blocks, converts to markdown
+#
+# Not supported (falls back to full refresh):
+# - users: No timestamp filter available
+# - data_sources: Use databases stream instead
