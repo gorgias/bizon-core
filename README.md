@@ -116,7 +116,9 @@ Bizon supports three sync modes:
 
 ### Incremental Sync
 
-To use incremental sync, set the `sync_mode` and `cursor_field` in your source configuration:
+Incremental sync fetches only new or updated records since the last successful run, using an **append-only** strategy.
+
+#### Configuration
 
 ```yaml
 source:
@@ -126,18 +128,108 @@ source:
   cursor_field: updated_at  # The timestamp field to filter records by
 ```
 
-**How it works:**
-1. First run: Behaves like full_refresh (fetches all data)
-2. Subsequent runs: Only fetches records where `cursor_field > last_run`
-3. Uses append-only strategy - new records are appended to existing data
+#### How It Works
 
-**Configuration:**
-- `sync_mode: incremental` - Enable incremental sync
-- `cursor_field` - The timestamp field in your data to filter by (e.g., `updated_at`, `modified_at`, `timestamp`)
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        INCREMENTAL SYNC FLOW                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. Producer checks for last successful job                         │
+│     └─> Backend.get_last_successful_stream_job()                    │
+│                                                                     │
+│  2. If found, creates SourceIncrementalState:                       │
+│     └─> last_run = previous_job.created_at                          │
+│     └─> cursor_field = config.cursor_field (e.g., "updated_at")     │
+│                                                                     │
+│  3. Calls source.get_records_after(source_state, pagination)        │
+│     └─> Source filters: WHERE cursor_field > last_run               │
+│                                                                     │
+│  4. Records written to temp table: {table}_incremental              │
+│                                                                     │
+│  5. finalize() appends temp table to main table                     │
+│     └─> INSERT INTO main_table SELECT * FROM temp_table             │
+│     └─> Deletes temp table                                          │
+│                                                                     │
+│  FIRST RUN: No previous job → falls back to get() (full refresh)    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-**Requirements:**
-- Source must implement `get_records_after()` method
-- Supported destinations: BigQuery (batch), BigQuery Streaming V2
+#### Configuration Options
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `sync_mode` | Yes | Set to `incremental` | `incremental` |
+| `cursor_field` | Yes | Timestamp field to filter by | `updated_at`, `last_edited_time`, `modified_at` |
+
+#### Supported Sources
+
+Sources must implement `get_records_after()` to support incremental sync:
+
+| Source | Cursor Field | Notes |
+|--------|--------------|-------|
+| `notion` | `last_edited_time` | Supports `pages`, `databases`, `blocks`, `blocks_markdown` streams |
+| (others) | Varies | Check source docs or implement `get_records_after()` |
+
+#### Supported Destinations
+
+Destinations must implement `finalize()` with incremental logic:
+
+| Destination | Support | Notes |
+|-------------|---------|-------|
+| `bigquery` | ✅ | Append-only via temp table |
+| `bigquery_streaming_v2` | ✅ | Append-only via temp table |
+| `file` | ✅ | Appends to existing file |
+| `logger` | ✅ | Logs completion |
+
+#### Example: Notion Incremental Sync
+
+```yaml
+name: notion_incremental_sync
+
+source:
+  name: notion
+  stream: blocks_markdown
+  sync_mode: incremental
+  cursor_field: last_edited_time
+  authentication:
+    type: api_key
+    params:
+      token: secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  database_ids:
+    - "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+  # Optional: filter which pages to sync
+  database_filters:
+    "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx":
+      property: "Status"
+      select:
+        equals: "Published"
+
+destination:
+  name: bigquery
+  config:
+    project_id: my-gcp-project
+    dataset_id: notion_data
+    dataset_location: US
+
+engine:
+  backend:
+    type: bigquery
+    database: my-gcp-project
+    schema: bizon_backend
+    syncCursorInDBEvery: 2
+```
+
+#### First Run Behavior
+
+On the first incremental run (no previous successful job):
+- Falls back to `get()` method (full refresh behavior)
+- All data is fetched and loaded
+- Job is marked as successful
+- Subsequent runs use `get_records_after()` with `last_run` timestamp
 
 ## Start syncing your data 🚀
 

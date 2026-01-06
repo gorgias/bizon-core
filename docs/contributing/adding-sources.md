@@ -155,6 +155,145 @@ uv run bizon run bizon/connectors/sources/myapi/config/myapi.example.yml
 - [ ] Example config created
 - [ ] Tests pass
 
+## Incremental Sync Support
+
+To support incremental sync, implement the `get_records_after()` method.
+
+### Required Method
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `get_records_after(source_state, pagination)` | `SourceIteration` | Fetch records updated after `source_state.last_run` |
+
+### SourceIncrementalState Model
+
+```python
+from bizon.source.models import SourceIncrementalState
+
+class SourceIncrementalState(BaseModel):
+    last_run: datetime      # Timestamp of last successful sync (from previous job's created_at)
+    state: dict = {}        # Optional additional state (currently unused)
+    cursor_field: str|None  # Field name configured by user (e.g., "updated_at")
+```
+
+### Implementation Example
+
+```python
+from bizon.source.models import SourceIncrementalState, SourceIteration, SourceRecord
+
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """Fetch records updated after source_state.last_run."""
+
+    # Convert datetime to API format (usually ISO string)
+    last_run_iso = source_state.last_run.isoformat()
+
+    # Build request with timestamp filter
+    params = {
+        "updated_after": last_run_iso,  # API-specific param name
+        "page_size": self.config.page_size,
+    }
+    if pagination and pagination.get("cursor"):
+        params["cursor"] = pagination["cursor"]
+
+    response = self.session.get(f"{BASE_URL}/records", params=params)
+    response.raise_for_status()
+    data = response.json()
+
+    records = [
+        SourceRecord(id=r["id"], data=r)
+        for r in data.get("results", [])
+    ]
+
+    # Pagination - same pattern as get()
+    next_pagination = {"cursor": data["next_cursor"]} if data.get("has_more") else {}
+
+    return SourceIteration(records=records, next_pagination=next_pagination)
+```
+
+### Client-Side Filtering (When API Lacks Timestamp Filter)
+
+Some APIs don't support timestamp filtering. In this case, fetch all records and filter client-side:
+
+```python
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """Fetch all records, filter by timestamp client-side."""
+
+    # Use regular get() to fetch records
+    iteration = self.get(pagination)
+
+    # Filter records where timestamp > last_run
+    filtered_records = []
+    for record in iteration.records:
+        record_timestamp = record.data.get(source_state.cursor_field)
+        if record_timestamp and record_timestamp > source_state.last_run.isoformat():
+            filtered_records.append(record)
+
+    return SourceIteration(
+        records=filtered_records,
+        next_pagination=iteration.next_pagination,
+    )
+```
+
+### Multi-Stream Dispatch
+
+For sources with multiple streams, create stream-specific methods and dispatch:
+
+```python
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """Dispatch to stream-specific incremental method."""
+    stream = self.config.stream
+
+    if stream == MyStreams.USERS:
+        return self.get_users_after(source_state, pagination)
+    elif stream == MyStreams.ORDERS:
+        return self.get_orders_after(source_state, pagination)
+    else:
+        # Fallback: use regular get() for unsupported streams
+        logger.warning(f"Stream {stream} doesn't support incremental, using full refresh")
+        return self.get(pagination)
+```
+
+### Example Config (YAML)
+
+```yaml
+source:
+  name: myapi
+  stream: users
+  sync_mode: incremental
+  cursor_field: updated_at  # Field name in your data
+  authentication:
+    type: api_key
+    params:
+      token: <YOUR_TOKEN>
+```
+
+### Testing Incremental Sync
+
+```bash
+# First run - fetches all data (no previous job)
+uv run bizon run config.yml
+
+# Edit a record in the source system...
+
+# Second run - only fetches records updated after first run
+uv run bizon run config.yml
+```
+
+### Incremental Sync Checklist
+
+- [ ] Implement `get_records_after(source_state, pagination)` method
+- [ ] Handle `source_state.last_run` as datetime
+- [ ] Use `source_state.cursor_field` if needed for client-side filtering
+- [ ] Return empty `next_pagination={}` when done
+- [ ] Test with two consecutive runs
+- [ ] Create example config with `sync_mode: incremental`
+
 ## Advanced Patterns
 
 For authentication types, pagination strategies, and production patterns, see:
