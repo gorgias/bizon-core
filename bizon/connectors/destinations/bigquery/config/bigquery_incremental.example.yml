@@ -1,0 +1,34 @@
+name: hubspot contacts to bigquery (incremental)
+
+source:
+  name: hubspot
+  stream: contacts
+  sync_mode: incremental
+  cursor_field: updatedAt  # HubSpot's timestamp field for filtering
+  properties:
+    strategy: all
+  authentication:
+    type: api_key
+    api_key: <MY_API_KEY>
+
+destination:
+  # Authentication: If empty it will be infered.
+  # Must have the bigquery.jobUser
+  # Must have the bigquery.dataEditor and storage.objectUser on the supplied dataset and bucket
+  name: bigquery
+  config:
+    buffer_size: 10 # in Mb
+    buffer_flush_timeout: 300 # in seconds
+    dataset_id: bizon_test
+    dataset_location: US
+    project_id: my-gcp-project-id
+    gcs_buffer_bucket: bizon-buffer
+    gcs_buffer_format: parquet
+    # Optional: service_account_key for explicit authentication
+    # service_account_key: >-
+    #   { ... }
+
+# How incremental sync works:
+# 1. First run: Behaves like full_refresh (fetches all data)
+# 2. Subsequent runs: Only fetches records where cursor_field > last_run
+# 3. Uses append-only strategy - new records are appended to existing data

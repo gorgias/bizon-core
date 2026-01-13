@@ -199,8 +199,112 @@ Before submitting:
 - [ ] All 3 registrations use the same name string
 - [ ] Tests pass
 
+## Incremental Sync Support
+
+Destinations must implement `finalize()` to properly handle different sync modes.
+
+### Sync Mode Handling in `finalize()`
+
+```python
+from bizon.source.config import SourceSyncModes
+
+def finalize(self) -> bool:
+    """
+    Finalize sync - handle data based on sync mode.
+
+    Sync modes:
+    - FULL_REFRESH: Replace main table with temp table
+    - INCREMENTAL: Append temp table to main table
+    - STREAM: Direct writes, no temp table
+    """
+    sync_mode = self.sync_metadata.sync_mode
+
+    if sync_mode == SourceSyncModes.FULL_REFRESH.value:
+        # Replace main table with temp table contents
+        logger.info(f"Replacing {self.table_id} with {self.temp_table_id}")
+        self.client.query(f"CREATE OR REPLACE TABLE {self.table_id} AS SELECT * FROM {self.temp_table_id}")
+        self.client.delete_table(self.temp_table_id, not_found_ok=True)
+        return True
+
+    elif sync_mode == SourceSyncModes.INCREMENTAL.value:
+        # Append temp table to main table (append-only strategy)
+        logger.info(f"Appending {self.temp_table_id} to {self.table_id}")
+        self.client.query(f"INSERT INTO {self.table_id} SELECT * FROM {self.temp_table_id}")
+        self.client.delete_table(self.temp_table_id, not_found_ok=True)
+        return True
+
+    elif sync_mode == SourceSyncModes.STREAM.value:
+        # Stream mode writes directly, no temp table management
+        logger.info("Stream sync completed")
+        return True
+
+    return True
+```
+
+### Temp Table Naming Convention
+
+Use different temp table names per sync mode for clarity:
+
+```python
+@property
+def temp_table_id(self) -> str:
+    """Return temp table name based on sync mode."""
+    if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH.value:
+        return f"{self.table_id}_temp"
+    elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL.value:
+        return f"{self.table_id}_incremental"
+    else:  # STREAM
+        return self.table_id  # Direct writes
+```
+
+### write_records() Considerations
+
+In `write_records()`, always write to `self.temp_table_id` (not `self.table_id`):
+
+```python
+def write_records(self, df: pl.DataFrame) -> Tuple[bool, str | None]:
+    try:
+        # Write to temp table - finalize() will move to main table
+        self.client.write_to_table(self.temp_table_id, df)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+```
+
+### File-Based Destinations
+
+For file destinations, append instead of using temp files:
+
+```python
+def finalize(self) -> bool:
+    if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH.value:
+        # Move temp file to main file (replace)
+        os.replace(self.temp_file_path, self.file_path)
+        return True
+
+    elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL.value:
+        # Append temp file contents to main file
+        with open(self.file_path, "a") as main_file:
+            with open(self.temp_file_path, "r") as temp_file:
+                main_file.write(temp_file.read())
+        os.remove(self.temp_file_path)
+        return True
+
+    return True
+```
+
+### Incremental Checklist for Destinations
+
+- [ ] Import `SourceSyncModes` from `bizon.source.config`
+- [ ] Implement `temp_table_id` property with mode-specific naming
+- [ ] Write records to `temp_table_id` in `write_records()`
+- [ ] Handle `INCREMENTAL` mode in `finalize()` (append strategy)
+- [ ] Clean up temp table/file after finalize
+- [ ] Test with incremental config
+
 ## Reference
 
 See existing implementations:
 - Simple: `bizon/connectors/destinations/logger/` (~40 lines)
 - Complex: `bizon/connectors/destinations/bigquery/` (batch loading with schema management)
+- Incremental: `bizon/connectors/destinations/bigquery_streaming_v2/` (streaming with incremental support)

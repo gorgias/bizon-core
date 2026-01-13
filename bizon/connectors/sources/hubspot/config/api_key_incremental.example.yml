@@ -1,0 +1,40 @@
+name: hubspot contacts incremental sync
+
+source:
+  name: hubspot
+  stream: contacts
+  sync_mode: incremental
+  cursor_field: updatedAt  # HubSpot's timestamp field for contacts
+  properties:
+    strategy: all
+  authentication:
+    type: api_key
+    params:
+      token: <MY_API_KEY>
+
+destination:
+  name: bigquery
+  config:
+    project_id: <MY_GCP_PROJECT>
+    dataset_id: hubspot_data
+    dataset_location: US
+    gcs_buffer_bucket: <MY_GCS_BUCKET>
+    gcs_buffer_format: parquet
+
+engine:
+  backend:
+    type: bigquery
+    database: <MY_GCP_PROJECT>
+    schema: bizon_backend
+    syncCursorInDBEvery: 2
+
+# Incremental sync for HubSpot:
+# - First run: Fetches all contacts (full refresh behavior)
+# - Subsequent runs: Only fetches contacts where updatedAt > last_run
+#
+# Common cursor fields by stream:
+# - contacts: updatedAt
+# - companies: updatedAt
+# - deals: updatedAt
+# - tickets: updatedAt
+# - products: updatedAt

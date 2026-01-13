@@ -29,6 +29,43 @@ uv run bizon source list        # List available sources
 uv run bizon stream list <source>  # List streams for a source
 ```
 
+## Releasing
+
+Releases are automated via GitHub Actions on tag push:
+
+1. **Update CHANGELOG.md** - Add entry under `[Unreleased]` following [Keep a Changelog](https://keepachangelog.com/) format
+2. **Bump version** in `pyproject.toml`
+3. **Move changelog entries** from `[Unreleased]` to new version section with date
+4. **Create and push tag**:
+   ```bash
+   git tag v0.X.Y
+   git push origin v0.X.Y
+   ```
+
+This triggers `.github/workflows/publish.yml` which:
+- Builds and publishes to PyPI
+- Creates GitHub Release with changelog excerpt
+
+### Changelog Format
+
+```markdown
+## [Unreleased]
+
+## [0.X.Y] - YYYY-MM-DD
+
+### Added
+- New features
+
+### Changed
+- Changes to existing functionality
+
+### Fixed
+- Bug fixes
+
+### Removed
+- Removed features
+```
+
 ## Code Style
 
 - Ruff formatter with line length 120
@@ -158,8 +195,104 @@ Then register in:
 ### Sync Modes
 
 - `FULL_REFRESH` - Full dataset each run
-- `INCREMENTAL` - Only new/updated records since last run
+- `INCREMENTAL` - Only new/updated records since last run (append-only)
 - `STREAM` - Continuous streaming mode
+
+### Implementing Incremental Sync
+
+Incremental sync requires implementation in both **sources** and **destinations**.
+
+#### Source: `get_records_after()` Method
+
+Sources must implement `get_records_after(source_state, pagination)` to support incremental sync:
+
+```python
+from bizon.source.models import SourceIncrementalState, SourceIteration, SourceRecord
+
+def get_records_after(
+    self, source_state: SourceIncrementalState, pagination: dict = None
+) -> SourceIteration:
+    """
+    Fetch records updated after source_state.last_run.
+
+    Args:
+        source_state: Contains:
+            - last_run (datetime): Timestamp of last successful sync
+            - cursor_field (str): Field name to filter by (e.g., "updated_at")
+            - state (dict): Optional additional state
+        pagination: Pagination state for multi-page results
+
+    Returns:
+        SourceIteration with records and next_pagination
+    """
+    # Convert last_run to API-compatible format
+    last_edited_after = source_state.last_run.isoformat()
+
+    # Query API with timestamp filter
+    # Example: GET /records?updated_after={last_edited_after}
+    response = self.session.get(
+        f"{BASE_URL}/records",
+        params={
+            "updated_after": last_edited_after,
+            "page_size": self.config.page_size,
+            **({"cursor": pagination["cursor"]} if pagination else {}),
+        }
+    )
+    data = response.json()
+
+    records = [
+        SourceRecord(id=r["id"], data=r)
+        for r in data["results"]
+    ]
+
+    next_pagination = {"cursor": data["next_cursor"]} if data.get("has_more") else {}
+
+    return SourceIteration(records=records, next_pagination=next_pagination)
+```
+
+**Key Implementation Notes:**
+- `source_state.last_run` is a `datetime` from the previous successful job's `created_at`
+- `source_state.cursor_field` tells you which field the user configured (e.g., "updated_at")
+- Filter records server-side when possible (more efficient)
+- For APIs without timestamp filters, filter client-side after fetching
+- Handle pagination the same way as `get()` method
+
+#### Destination: `finalize()` Method for Incremental
+
+Destinations must implement `finalize()` to handle incremental data:
+
+```python
+from bizon.source.config import SourceSyncModes
+
+def finalize(self) -> bool:
+    """Finalize sync - handle temp table based on sync mode."""
+    if self.sync_metadata.sync_mode == SourceSyncModes.FULL_REFRESH.value:
+        # Replace main table with temp table
+        self.client.query(f"CREATE OR REPLACE TABLE {self.table_id} AS SELECT * FROM {self.temp_table_id}")
+        self.client.delete_table(self.temp_table_id, not_found_ok=True)
+        return True
+
+    elif self.sync_metadata.sync_mode == SourceSyncModes.INCREMENTAL.value:
+        # Append temp table to main table
+        self.client.query(f"INSERT INTO {self.table_id} SELECT * FROM {self.temp_table_id}")
+        self.client.delete_table(self.temp_table_id, not_found_ok=True)
+        return True
+
+    elif self.sync_metadata.sync_mode == SourceSyncModes.STREAM.value:
+        return True  # Direct writes, no finalization
+```
+
+**Temp Table Naming Convention:**
+- Full refresh: `{table_id}_temp`
+- Incremental: `{table_id}_incremental`
+- Stream: `{table_id}` (direct writes)
+
+#### Reference Implementation: Notion Source
+
+See `bizon/connectors/sources/notion/src/source.py` for a complete incremental implementation:
+- `get_pages_after()` - Uses Search API with client-side filtering
+- `get_blocks_markdown_after()` - Queries databases with combined timestamp + user filters
+- `get_records_after()` - Main dispatch method
 
 ### Queue Types
 
