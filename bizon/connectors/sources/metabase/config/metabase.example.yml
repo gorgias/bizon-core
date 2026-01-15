@@ -1,0 +1,32 @@
+# Metabase Source Configuration
+#
+# Authentication: API Key (recommended)
+#
+# To get your API key:
+# 1. Log in to your Metabase instance as an admin
+# 2. Go to Settings > Admin settings > Authentication > API Keys
+# 3. Create a new API key and copy the token
+#
+# Docs: https://www.metabase.com/docs/latest/people-and-groups/api-keys
+
+name: metabase_users_to_logger
+
+source:
+  name: metabase
+  stream: users  # Options: users, cards, dashboards, permissions_groups
+
+  # Your Metabase instance URL (required)
+  base_url: https://metabase.example.com
+
+  authentication:
+    type: api_key
+    params:
+      token: <YOUR_METABASE_API_KEY>
+
+  # Records per page for paginated streams (users). Default: 50
+  page_size: 50
+
+destination:
+  name: logger
+  config:
+    dummy: bizon
