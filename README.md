@@ -2,7 +2,7 @@
 Extract and load your largest data streams with a framework you can trust for billion records.
 
 ## Features
-- **Natively fault-tolerant**: Bizon uses a checkpointing mechanism to keep track of the progress and recover from the last checkpoint.
+- **Natively fault-tolerant**: Bizon uses a checkpointing mechanism to keep track of the progress and recover from the lasts checkpoints.
 
 - **High throughput**: Bizon is designed to handle high throughput and can process billions of records.
 
